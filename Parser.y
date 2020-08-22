@@ -51,24 +51,110 @@ import AST
     -- Punctuation
     '('             { CHARSYM '(' }
     ')'             { CHARSYM ')' }
+    '{'             { CHARSYM '{' }
+    '}'             { CHARSYM '}' }
     '['             { CHARSYM '[' }
     ']'             { CHARSYM ']' }
     '.'             { CHARSYM '.' }
     ';'             { CHARSYM ';' }
+    ','             { CHARSYM ',' }
     -- Everything else
     id              { IDENT $$ }
 
 %%
 
+Program     : RecordDefs ArrayDefs ProcDefs                 {}
 
-Exp     : Type Value        { ($1, $2) }
+RecordDefs  : {- empty -}                                   {}
+            | RecordDef                                     {}
+            | RecordDefs RecordDef                          {}
 
-Type    : boolean           { BoolType }
-        | integer           { IntType  }
+RecordDef   : record '{' FieldDecs '}' id ';'               {}
 
-Value   : bool_const        { BoolConst $1 }
-        | int_const         { IntConst $1 }
-        | str_const         { StrConst $1 }
+FieldDecs   : FieldDec                                      {}
+            | FieldDecs ';' FieldDec                        {}
+
+FieldDec    : boolean id                                    {}
+            | integer id                                    {}
+
+ArrayDefs   : {- empty -}                                   {}
+            | ArrayDef                                      {}
+            | ArrayDefs ArrayDef                            {}
+
+ArrayDef    : array '[' int_const ']' ArrayType id ';'      {}
+
+ArrayType   : boolean                                       {}
+            | integer                                       {}
+            | id                                            {}
+
+ProcDefs    : ProcDef                                       {}
+            | ProcDefs ProcDef                              {}
+
+ProcDef     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'   {}
+
+Parameters  : {- empty -}                                   {}
+            | Parameter                                     {}
+            | Parameters ',' Parameter                      {}
+
+Parameter   : id id                                         {}
+            | boolean id                                    {}
+            | integer id                                    {}
+            | boolean val id                                {}
+            | integer val id                                {}
+
+LocalVarDecs : {- empty -}                                  {}
+             | LocalVarDec                                  {}
+             | LocalVarDecs LocalVarDec                     {}
+
+LocalVarDec : id LocalVars ';'                              {}
+            | boolean LocalVars ';'                         {}
+            | integer LocalVars ';'                         {}
+
+LocalVars   : id                                            {}
+            | LocalVars ',' id                              {}
+
+Statements  : Statement                                     {}
+            | Statements Statement                          {}
+
+Statement   : Lvalue assign Expr ';'                        {}
+            | read Lvalue ';'                               {}
+            | write Lvalue ';'                              {}
+            | writeln Lvalue ';'                            {}
+            | call id '(' Args ')' ';'                      {}
+            | if Expr then Statements ElseClause fi         {}
+            | while Expr do Statements od                   {}
+
+ElseClause  : {- empty -}                                   {}
+            | else Statements                               {}
+
+Args        : {- empty -}                                   {}
+            | Expr                                          {}
+            | Args ',' Expr                                 {}
+
+Lvalue      : id                                            {}
+            | id '.' id                                     {}
+            | id '[' Expr ']'                               {}
+            | id '[' Expr ']' '.' id                        {}
+
+Expr        : Lvalue                                        {}
+            | bool_const                                    {}
+            | int_const                                     {}
+            | str_const                                     {}
+            | '(' Expr ')'                                  {}
+            | Expr or Expr                                  {}
+            | Expr and Expr                                 {}
+            | not Expr                                      {}
+            | Expr '=' Expr                                 {}
+            | Expr '!=' Expr                                {}
+            | Expr '<' Expr                                 {}
+            | Expr '<=' Expr                                {}
+            | Expr '>' Expr                                 {}
+            | Expr '>=' Expr                                {}
+            | Expr '+' Expr                                 {}
+            | Expr '-' Expr                                 {}
+            | Expr '*' Expr                                 {}
+            | Expr '/' Expr                                 {}
+            | '-' Expr                                      {}
 
 {
 parseError :: [Token] -> a

@@ -11,7 +11,7 @@ $digit       = 0-9
 @string      = \" [^\"]* \"
 @ident       = @alpha (@alpha | $digit | \_ | \')*
 @comment     = \# [^\n]* \n
-@charsym     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.]
+@charsym     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 
 rules :-
   $white+    ;    -- skip white space
