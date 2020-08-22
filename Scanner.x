@@ -8,7 +8,7 @@ $digit       = 0-9
 @alpha       = [a-zA-Z]
 @digits      = $digit+
 -- This doesn't handle escaped backslashes I think
-@stringlit   = \" [^\"]* \"
+@string      = \" [^\"]* \"
 @ident       = @alpha (@alpha | $digit | \_ | \')*
 @comment     = \# [^\n]* \n
 
@@ -17,13 +17,9 @@ rules :-
   $white+    ;    -- skip white space
   @comment   ;    -- skip comments
   @digits    { \s -> INT_CONST (read s :: Int) }
+  @string    { \s -> STR_CONST s }
   true       { \s -> BOOL_CONST True }
   false      { \s -> BOOL_CONST False }
-  boolean    { \s -> BOOL }
-  integer    { \s -> INT }
-  procedure  { \s -> PROC }
-  read       { \s -> READ }
-  write      { \s -> WRITE }
   \<\-       { \s -> ASSIGN }
   \{         { \s -> LBRACE }
   \}         { \s -> RBRACE }
@@ -34,12 +30,11 @@ rules :-
   \*         { \s -> MULT }
   \;         { \s -> SEMI }
   @ident     { \s -> IDENT s }
-  @stringlit { \s -> LIT s }
 
 {
 data Token
-  = INT_CONST Int | BOOL_CONST Bool | IDENT String | LIT String
-  | BOOL | INT | PROC | READ | WRITE | ASSIGN | LBRACE | RBRACE
+  = INT_CONST Int | BOOL_CONST Bool | STR_CONST String
+  | IDENT String | ASSIGN | LBRACE | RBRACE
   | LPAREN | RPAREN | PLUS | MINUS | MULT | SEMI 
     deriving (Eq, Show)
 }

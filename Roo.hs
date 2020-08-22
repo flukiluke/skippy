@@ -2,6 +2,7 @@ module Main (main) where
 import System.Environment (getProgName, getArgs)
 import System.Exit (exitWith, ExitCode(..))
 import Scanner (alexScanTokens)
+import Parser (parse)
 
 data Task
     = Parse | Pprint | Lex
@@ -16,19 +17,10 @@ main
       case task of
         Parse
           -> do
-              putStrLn "Parse"
-              {-
               let [_, filename] = args
-               input <- readFile filename
-               let output = ast input
-               case output of
-                 Right tree 
-                   -> putStrLn (show tree)
-                 Left err 
-                   -> do putStrLn "Parse error at " 
-                         print err
-                         exitWith (ExitFailure 2) 
-               -}
+              input <- readFile filename
+              let output = parse . alexScanTokens $ input
+              putStrLn (show output)
         Pprint
           -> do
               putStrLn "Pprint"
