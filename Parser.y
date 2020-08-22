@@ -120,8 +120,8 @@ Statements  : Statement                                     {}
 
 Statement   : Lvalue assign Expr ';'                        {}
             | read Lvalue ';'                               {}
-            | write Lvalue ';'                              {}
-            | writeln Lvalue ';'                            {}
+            | write Expr ';'                                {}
+            | writeln Expr ';'                              {}
             | call id '(' Args ')' ';'                      {}
             | if Expr then Statements ElseClause fi         {}
             | while Expr do Statements od                   {}
