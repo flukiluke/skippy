@@ -1,5 +1,6 @@
 {
 module Parser where
+import Data.List (intercalate)
 import Scanner
 import AST
 }
@@ -7,6 +8,7 @@ import AST
 %name parse
 %tokentype { (AlexPosn, Token) }
 %error { parseError }
+%errorhandlertype explist
 
 %token
     -- Literals
@@ -157,6 +159,10 @@ Expr        : Lvalue                                        {}
             | '-' Expr                                      {}
 
 {
-parseError :: [(AlexPosn, Token)] -> a
-parseError ((AlexPn _ row col, _):ts) = error ("Parse error on line " ++ (show row) ++ ", column " ++ (show col))
+parseError :: ([(AlexPosn, Token)], [String]) -> a
+parseError ((AlexPn _ row col, t):ts, explist)
+    = error ("Parse error on line " ++
+            (show row) ++ ", column " ++ (show col) ++
+            ". Got " ++ (show t) ++ " but expected one of: " ++
+            (intercalate ", " explist))
 }
