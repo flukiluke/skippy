@@ -1,0 +1,4 @@
+*.o
+*.hi
+Scanner.hs
+Roo
