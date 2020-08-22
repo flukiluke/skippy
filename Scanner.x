@@ -31,7 +31,7 @@ rules :-
   \)         { \s -> RPAREN }
   \+         { \s -> PLUS }
   \-         { \s -> MINUS }
-  \*         { \s -> MUL }
+  \*         { \s -> MULT }
   \;         { \s -> SEMI }
   @ident     { \s -> IDENT s }
   @stringlit { \s -> LIT s }
@@ -40,12 +40,7 @@ rules :-
 data Token
   = INT_CONST Int | BOOL_CONST Bool | IDENT String | LIT String
   | BOOL | INT | PROC | READ | WRITE | ASSIGN | LBRACE | RBRACE
-  | LPAREN | RPAREN | PLUS | MINUS | MUL | SEMI 
+  | LPAREN | RPAREN | PLUS | MINUS | MULT | SEMI 
     deriving (Eq, Show)
-
-main
-  = do
-      s <- getContents
-      print (alexScanTokens s)
 }
 
