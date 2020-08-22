@@ -2,36 +2,41 @@
 module Scanner where
 }
 
-%wrapper "basic"
+%wrapper "posn"
 
-$digit       = 0-9
-@alpha       = [a-zA-Z]
-@digits      = $digit+
+$digit      = 0-9
+$symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
+@alpha      = [a-zA-Z]
+@digits     = $digit+
 -- This doesn't handle escaped backslashes I think
-@string      = \" [^\"]* \"
-@ident       = @alpha (@alpha | $digit | \_ | \')*
-@comment     = \# [^\n]* \n
-@charsym     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
+@string     = \" [^\"]* \"
+@ident      = @alpha (@alpha | $digit | \_ | \')*
+@comment    = \# [^\n]* \n
+@symops     = "<-" | "<=" | ">=" | "!="
+@keywords   =
+        and|array|assign|boolean|call|do|else|fi|if|integer|not|
+        od|or|procedure|read|record|then|val|while|write|writeln
 
 rules :-
-  $white+    ;    -- skip white space
-  @comment   ;    -- skip comments
-  @digits    { \s -> INT_CONST (read s :: Int) }
-  @string    { \s -> STR_CONST s }
-  true       { \s -> BOOL_CONST True }
-  false      { \s -> BOOL_CONST False }
-  \<\-       { \s -> ASSIGN }
-  \!\=       { \s -> COMP_NEQ }
-  \<\=       { \s -> COMP_LTEQ }
-  \>\=       { \s -> COMP_GTEQ }
-  @charsym   { \s -> CHARSYM (head s) }
-  @ident     { \s -> IDENT s }
+  $white+   ;    -- skip white space
+  @comment  ;    -- skip comments
+  @digits   { (\p s -> (p, IntegerLit (read s :: Int))) }
+  @string   { (\p s -> (p, StringLit s)) }
+  true      { (\p s -> (p, BooleanLit True)) }
+  false     { (\p s -> (p, BooleanLit False)) }
+  @symops   { (\p s -> (p, Symbol s)) }
+  $symbol   { (\p s -> (p, Symbol s)) }
+  @keywords { (\p s -> (p, Keyword s)) }
+  @ident    { (\p s -> (p, Identifier s)) }
 
 {
 data Token
-  = INT_CONST Int | BOOL_CONST Bool | STR_CONST String
-  | IDENT String | ASSIGN | COMP_NEQ | COMP_LTEQ | COMP_GTEQ
-  | CHARSYM Char
+    = Identifier String
+    | Keyword String
+    | BooleanLit Bool
+    | IntegerLit Int
+    | StringLit String
+    | Symbol String
     deriving (Eq, Show)
 }
 

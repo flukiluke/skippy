@@ -5,61 +5,61 @@ import AST
 }
 
 %name parse
-%tokentype { Token }
+%tokentype { (AlexPosn, Token) }
 %error { parseError }
 
 %token
-    -- Constants
-    bool_const      { BOOL_CONST $$ }
-    int_const       { INT_CONST $$ }
-    str_const       { STR_CONST $$ }
+    -- Literals
+    boolean_lit     { (_, BooleanLit $$) }
+    integer_lit     { (_, IntegerLit $$) }
+    string_lit      { (_, StringLit $$) }
     -- Types & Declarations
-    array           { IDENT "array" }
-    boolean         { IDENT "boolean" }
-    integer         { IDENT "integer" }
-    procedure       { IDENT "procedure" }
-    record          { IDENT "record" }
-    val             { IDENT "val" }
+    array           { (_, Keyword "array") }
+    boolean         { (_, Keyword "boolean") }
+    integer         { (_, Keyword "integer") }
+    procedure       { (_, Keyword "procedure") }
+    record          { (_, Keyword "record") }
+    val             { (_, Keyword "val") }
     -- Atomic statements
-    assign          { ASSIGN }
-    read            { IDENT "read" }
-    write           { IDENT "write" }
-    writeln         { IDENT "writeln" }
-    call            { IDENT "call" }
+    assign          { (_, Symbol "<-") }
+    read            { (_, Keyword "read") }
+    write           { (_, Keyword "write") }
+    writeln         { (_, Keyword "writeln") }
+    call            { (_, Keyword "call") }
     -- Compound statements
-    while           { IDENT "while" }
-    do              { IDENT "do" }
-    od              { IDENT "od" }
-    if              { IDENT "if" }
-    then            { IDENT "then" }
-    else            { IDENT "else" }
-    fi              { IDENT "fi" }
+    while           { (_, Keyword "while") }
+    do              { (_, Keyword "do") }
+    od              { (_, Keyword "od") }
+    if              { (_, Keyword "if") }
+    then            { (_, Keyword "then") }
+    else            { (_, Keyword "else") }
+    fi              { (_, Keyword "fi") }
     -- Operators
-    and             { IDENT "and" }
-    or              { IDENT "or" }
-    not             { IDENT "not" }
-    '='             { CHARSYM '=' }
-    '!='            { COMP_NEQ }
-    '<'             { CHARSYM '<' }
-    '<='            { COMP_LTEQ }
-    '>'             { CHARSYM '>' }
-    '>='            { COMP_GTEQ }
-    '+'             { CHARSYM '+' }
-    '-'             { CHARSYM '-' }
-    '*'             { CHARSYM '*' }
-    '/'             { CHARSYM '/' }
+    and             { (_, Keyword "and") }
+    or              { (_, Keyword "or") }
+    not             { (_, Keyword "not") }
+    '='             { (_, Symbol "=") }
+    '!='            { (_, Symbol "!=") }
+    '<'             { (_, Symbol "<") }
+    '<='            { (_, Symbol "<=") }
+    '>'             { (_, Symbol ">") }
+    '>='            { (_, Symbol ">=") }
+    '+'             { (_, Symbol "+") }
+    '-'             { (_, Symbol "-") }
+    '*'             { (_, Symbol "*") }
+    '/'             { (_, Symbol "/") }
     -- Punctuation
-    '('             { CHARSYM '(' }
-    ')'             { CHARSYM ')' }
-    '{'             { CHARSYM '{' }
-    '}'             { CHARSYM '}' }
-    '['             { CHARSYM '[' }
-    ']'             { CHARSYM ']' }
-    '.'             { CHARSYM '.' }
-    ';'             { CHARSYM ';' }
-    ','             { CHARSYM ',' }
+    '('             { (_, Symbol "(") }
+    ')'             { (_, Symbol ")") }
+    '{'             { (_, Symbol "{") }
+    '}'             { (_, Symbol "}") }
+    '['             { (_, Symbol "[") }
+    ']'             { (_, Symbol "]") }
+    '.'             { (_, Symbol ".") }
+    ';'             { (_, Symbol ";") }
+    ','             { (_, Symbol ",") }
     -- Everything else
-    id              { IDENT $$ }
+    id              { (_, Identifier $$) }
 
 %%
 
@@ -81,7 +81,7 @@ ArrayDefs   : {- empty -}                                   {}
             | ArrayDef                                      {}
             | ArrayDefs ArrayDef                            {}
 
-ArrayDef    : array '[' int_const ']' ArrayType id ';'      {}
+ArrayDef    : array '[' integer_lit ']' ArrayType id ';'    {}
 
 ArrayType   : boolean                                       {}
             | integer                                       {}
@@ -137,9 +137,9 @@ Lvalue      : id                                            {}
             | id '[' Expr ']' '.' id                        {}
 
 Expr        : Lvalue                                        {}
-            | bool_const                                    {}
-            | int_const                                     {}
-            | str_const                                     {}
+            | boolean_lit                                   {}
+            | integer_lit                                   {}
+            | string_lit                                    {}
             | '(' Expr ')'                                  {}
             | Expr or Expr                                  {}
             | Expr and Expr                                 {}
@@ -157,6 +157,6 @@ Expr        : Lvalue                                        {}
             | '-' Expr                                      {}
 
 {
-parseError :: [Token] -> a
-parseError _ = error "Parse error"
+parseError :: [(AlexPosn, Token)] -> a
+parseError ((AlexPn _ row col, _):ts) = error ("Parse error on line " ++ (show row) ++ ", column " ++ (show col))
 }
