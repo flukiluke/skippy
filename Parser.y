@@ -9,6 +9,8 @@ import AST
 %tokentype { (AlexPosn, Token) }
 %error { parseError }
 %errorhandlertype explist
+-- S/R warnings due to some of the optional components; shift action is fine
+%expect 5
 
 %token
     -- Literals
