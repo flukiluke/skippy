@@ -63,15 +63,23 @@ import AST
     -- Everything else
     id              { (_, Identifier $$) }
 
+%left or
+%left and
+%left not
+%nonassoc '=' '!=' '<' '<=' '>' '>='
+%left '+' '-'
+%left '*' '/'
+%left negate
+
 %%
 
-Program     : RecordDefs ArrayDefs ProcDefs                 {}
+Program     : RecordDecs ArrayDecs ProcDecs                 {}
 
-RecordDefs  : {- empty -}                                   {}
-            | RecordDef                                     {}
-            | RecordDefs RecordDef                          {}
+RecordDecs  : {- empty -}                                   {}
+            | RecordDec                                     {}
+            | RecordDecs RecordDec                          {}
 
-RecordDef   : record '{' FieldDecs '}' id ';'               {}
+RecordDec   : record '{' FieldDecs '}' id ';'               {}
 
 FieldDecs   : FieldDec                                      {}
             | FieldDecs ';' FieldDec                        {}
@@ -79,20 +87,20 @@ FieldDecs   : FieldDec                                      {}
 FieldDec    : boolean id                                    {}
             | integer id                                    {}
 
-ArrayDefs   : {- empty -}                                   {}
-            | ArrayDef                                      {}
-            | ArrayDefs ArrayDef                            {}
+ArrayDecs   : {- empty -}                                   {}
+            | ArrayDec                                      {}
+            | ArrayDecs ArrayDec                            {}
 
-ArrayDef    : array '[' integer_lit ']' ArrayType id ';'    {}
+ArrayDec    : array '[' integer_lit ']' ArrayType id ';'    {}
 
 ArrayType   : boolean                                       {}
             | integer                                       {}
             | id                                            {}
 
-ProcDefs    : ProcDef                                       {}
-            | ProcDefs ProcDef                              {}
+ProcDecs    : ProcDec                                       {}
+            | ProcDecs ProcDec                              {}
 
-ProcDef     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'   {}
+ProcDec     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'   {}
 
 Parameters  : {- empty -}                                   {}
             | Parameter                                     {}
@@ -156,7 +164,7 @@ Expr        : Lvalue                                        {}
             | Expr '-' Expr                                 {}
             | Expr '*' Expr                                 {}
             | Expr '/' Expr                                 {}
-            | '-' Expr                                      {}
+            | '-' Expr %prec negate                         {}
 
 {
 parseError :: ([(AlexPosn, Token)], [String]) -> a
