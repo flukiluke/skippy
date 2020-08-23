@@ -8,7 +8,8 @@ $digit      = 0-9
 $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 @alpha      = [a-zA-Z]
 @digits     = $digit+
--- This doesn't handle escaped backslashes I think
+-- This doesn't handle escaped backslashes I think.
+-- Also need to find a nice way to strip the quotes from the returned value.
 @string     = \" [^\"]* \"
 @ident      = @alpha (@alpha | $digit | \_ | \')*
 @comment    = \# [^\n]* \n
@@ -39,4 +40,3 @@ data Token
     | Symbol String
     deriving (Eq, Show)
 }
-
