@@ -1,6 +1,9 @@
+-- cabal install alex happy pretty-print
+
 module Main (main) where
 import System.Environment (getProgName, getArgs)
 import System.Exit (exitWith, ExitCode(..))
+import Text.Pretty.Simple (pPrint)
 import Scanner (alexScanTokens)
 import Parser (parse)
 
@@ -19,8 +22,7 @@ main
           -> do
               let [_, filename] = args
               input <- readFile filename
-              let output = parse . alexScanTokens $ input
-              putStrLn (show output)
+              pPrint . parse . alexScanTokens $ input
         Pprint
           -> do
               putStrLn "Pprint"
@@ -40,8 +42,7 @@ main
           -> do
               let [_, filename] = args
               input <- readFile filename
-              let output = alexScanTokens input
-              putStrLn (show output)
+              pPrint . alexScanTokens $ input
 
 checkArgs :: String -> [String] -> IO Task
 checkArgs _ ['-':_]
