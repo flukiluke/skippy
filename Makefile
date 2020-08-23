@@ -5,10 +5,10 @@ Scanner.hs: Scanner.x
 	alex Scanner.x
 
 Parser.hs: Parser.y
-	happy Parser.y
+	happy -iparser.info Parser.y
 
 clean:
 	rm -f *.o *.hi
-	rm -f Scanner.hs Roo
+	rm -f Scanner.hs Parser.hs parser.info Roo
 
 

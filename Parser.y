@@ -72,99 +72,105 @@ import AST
 %left negate
 
 %%
+{- Regarding lists:
+As per the happy manual, we write our list productions with left recursion to
+better handle long sequences. This means the production is in reverse order
+though, so we apply reverse whenever list productions are used. That trick is
+stolen from GHC's happy grammar.
+-}
 
-Program     : RecordDecs ArrayDecs ProcDecs                 {}
+Program     : RecordDecs ArrayDecs ProcDecs                 { Program (reverse $1) (reverse $2) (reverse $3) }
 
-RecordDecs  : {- empty -}                                   {}
-            | RecordDec                                     {}
-            | RecordDecs RecordDec                          {}
+RecordDecs  : {- empty -}                                   { [] }
+            | RecordDec                                     { [$1] }
+            | RecordDecs RecordDec                          { $2 : $1 }
 
-RecordDec   : record '{' FieldDecs '}' id ';'               {}
+RecordDec   : record '{' FieldDecs '}' id ';'               { RecordDec $5 (reverse $3) }
 
-FieldDecs   : FieldDec                                      {}
-            | FieldDecs ';' FieldDec                        {}
+FieldDecs   : FieldDec                                      { [$1] }
+            | FieldDecs ';' FieldDec                        { $3 : $1 }
 
-FieldDec    : boolean id                                    {}
-            | integer id                                    {}
+FieldDec    : boolean id                                    { FieldDec $2 BoolType }
+            | integer id                                    { FieldDec $2 IntType }
 
-ArrayDecs   : {- empty -}                                   {}
-            | ArrayDec                                      {}
-            | ArrayDecs ArrayDec                            {}
+ArrayDecs   : {- empty -}                                   { [] }
+            | ArrayDec                                      { [$1] }
+            | ArrayDecs ArrayDec                            { $2 : $1 }
 
-ArrayDec    : array '[' integer_lit ']' ArrayType id ';'    {}
+ArrayDec    : array '[' integer_lit ']' ArrayType id ';'    { ArrayDec $6 $5 $3 }
 
-ArrayType   : boolean                                       {}
-            | integer                                       {}
-            | id                                            {}
+ArrayType   : boolean                                       { BoolType }
+            | integer                                       { IntType }
+            | id                                            { (AliasType $1) }
 
-ProcDecs    : ProcDec                                       {}
-            | ProcDecs ProcDec                              {}
+ProcDecs    : ProcDec                                       { [$1] }
+            | ProcDecs ProcDec                              { $2 : $1 }
 
-ProcDec     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'   {}
+ProcDec     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'   { Proc $2 (reverse $4) (reverse $6) (reverse $8) }
 
-Parameters  : {- empty -}                                   {}
-            | Parameter                                     {}
-            | Parameters ',' Parameter                      {}
+Parameters  : {- empty -}                                   { [] }
+            | Parameter                                     { [$1] }
+            | Parameters ',' Parameter                      { $3 : $1 }
 
-Parameter   : id id                                         {}
-            | boolean id                                    {}
-            | integer id                                    {}
-            | boolean val id                                {}
-            | integer val id                                {}
+Parameter   : id id                                         { RefParam $2 (AliasType $1) }
+            | boolean id                                    { RefParam $2 BoolType }
+            | integer id                                    { RefParam $2 IntType }
+            | boolean val id                                { ValParam $3 BoolType }
+            | integer val id                                { ValParam $3 IntType }
 
-LocalVarDecs : {- empty -}                                  {}
-             | LocalVarDec                                  {}
-             | LocalVarDecs LocalVarDec                     {}
+LocalVarDecs : {- empty -}                                  { [] }
+             | LocalVarDec                                  { [$1] }
+             | LocalVarDecs LocalVarDec                     { $2 : $1 }
 
-LocalVarDec : id LocalVars ';'                              {}
-            | boolean LocalVars ';'                         {}
-            | integer LocalVars ';'                         {}
+LocalVarDec : id LocalVars ';'                              { VarDec (reverse $2) (AliasType $1) }
+            | boolean LocalVars ';'                         { VarDec (reverse $2) BoolType }
+            | integer LocalVars ';'                         { VarDec (reverse $2) IntType }
 
-LocalVars   : id                                            {}
-            | LocalVars ',' id                              {}
+LocalVars   : id                                            { [$1] }
+            | LocalVars ',' id                              { $3 : $1 }
 
-Statements  : Statement                                     {}
-            | Statements Statement                          {}
+Statements  : Statement                                     { [$1] }
+            | Statements Statement                          { $2 : $1 }
 
-Statement   : Lvalue assign Expr ';'                        {}
-            | read Lvalue ';'                               {}
-            | write Expr ';'                                {}
-            | writeln Expr ';'                              {}
-            | call id '(' Args ')' ';'                      {}
-            | if Expr then Statements ElseClause fi         {}
-            | while Expr do Statements od                   {}
+Statement   : Lvalue assign Expr ';'                        { Assign $1 $3 }
+            | read Lvalue ';'                               { Read $2 }
+            | write Expr ';'                                { Write $2 }
+            | writeln Expr ';'                              { WriteLn $2 }
+            | call id '(' Args ')' ';'                      { Call $2 (reverse $4) }
+            | if Expr then Statements ElseClause fi         { If $2 (reverse $4) $5 }
+            | while Expr do Statements od                   { While $2 (reverse $4) }
 
-ElseClause  : {- empty -}                                   {}
-            | else Statements                               {}
+ElseClause  : {- empty -}                                   { [] }
+            | else Statements                               { (reverse $2) }
 
-Args        : {- empty -}                                   {}
-            | Expr                                          {}
-            | Args ',' Expr                                 {}
+Args        : {- empty -}                                   { [] }
+            | Expr                                          { [$1] }
+            | Args ',' Expr                                 { $3 : $1 }
 
-Lvalue      : id                                            {}
-            | id '.' id                                     {}
-            | id '[' Expr ']'                               {}
-            | id '[' Expr ']' '.' id                        {}
+Lvalue      : id                                            { LId $1 }
+            | id '.' id                                     { LField $1 $3 }
+            | id '[' Expr ']'                               { LArray $1 $3 }
+            | id '[' Expr ']' '.' id                        { LArrayField $1 $3 $6 }
 
-Expr        : Lvalue                                        {}
-            | boolean_lit                                   {}
-            | integer_lit                                   {}
-            | string_lit                                    {}
-            | '(' Expr ')'                                  {}
-            | Expr or Expr                                  {}
-            | Expr and Expr                                 {}
-            | not Expr                                      {}
-            | Expr '=' Expr                                 {}
-            | Expr '!=' Expr                                {}
-            | Expr '<' Expr                                 {}
-            | Expr '<=' Expr                                {}
-            | Expr '>' Expr                                 {}
-            | Expr '>=' Expr                                {}
-            | Expr '+' Expr                                 {}
-            | Expr '-' Expr                                 {}
-            | Expr '*' Expr                                 {}
-            | Expr '/' Expr                                 {}
-            | '-' Expr %prec negate                         {}
+Expr        : Lvalue                                        { Lval $1 }
+            | boolean_lit                                   { BoolLit $1 }
+            | integer_lit                                   { IntLit $1 }
+            | string_lit                                    { StrLit $1 }
+            | '(' Expr ')'                                  { $2 }
+            | Expr or Expr                                  { BinOpExpr Op_or $1 $3 }
+            | Expr and Expr                                 { BinOpExpr Op_and $1 $3 }
+            | not Expr                                      { Lnot $2 }
+            | Expr '=' Expr                                 { BinOpExpr Op_eq $1 $3 }
+            | Expr '!=' Expr                                { BinOpExpr Op_neq $1 $3 }
+            | Expr '<' Expr                                 { BinOpExpr Op_lt $1 $3 }
+            | Expr '<=' Expr                                { BinOpExpr Op_lteq $1 $3 }
+            | Expr '>' Expr                                 { BinOpExpr Op_gt $1 $3 }
+            | Expr '>=' Expr                                { BinOpExpr Op_gteq $1 $3 }
+            | Expr '+' Expr                                 { BinOpExpr Op_plus $1 $3 }
+            | Expr '-' Expr                                 { BinOpExpr Op_minus $1 $3 }
+            | Expr '*' Expr                                 { BinOpExpr Op_mult $1 $3 }
+            | Expr '/' Expr                                 { BinOpExpr Op_divide $1 $3 }
+            | '-' Expr %prec negate                         { Negate $2 }
 
 {
 parseError :: ([(AlexPosn, Token)], [String]) -> a

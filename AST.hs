@@ -5,38 +5,80 @@ module AST where
 -----------------------------------
 
 type Ident = String
- 
-data TypeName
-  = BoolType | IntType 
+
+data Program
+    = Program [RecordDec] [ArrayDec] [Proc]
     deriving (Show, Eq)
 
-data LValue 
-  = LId Ident
+data RecordDec
+    = RecordDec Ident [FieldDec]
+    deriving (Show, Eq)
+    
+data FieldDec
+    = FieldDec Ident TypeName
     deriving (Show, Eq)
 
-data BinOp 
-  = Op_add | Op_sub | Op_mul 
+data ArrayDec
+    = ArrayDec Ident TypeName Int 
     deriving (Show, Eq)
 
-data Exp
-  = Lval LValue
-  | BoolConst Bool
-  | IntConst Int
-  | BinOpExp BinOp Exp Exp
-  | StrConst String
+data Proc
+    = Proc Ident [Parameter] [VarDec] [Stmt]
     deriving (Show, Eq)
 
-data Decl 
-  = Decl TypeName Ident 
+data Parameter
+    = RefParam Ident TypeName
+    | ValParam Ident TypeName
+    deriving (Show, Eq)
+
+data VarDec
+    = VarDec [Ident] TypeName
     deriving (Show, Eq)
 
 data Stmt 
-  = Assign LValue Exp
-  | Read LValue
-  | Write Exp
+    = Assign LValue Expr
+    | Read LValue
+    | Write Expr
+    | WriteLn Expr
+    | Call Ident [Expr]
+    | If Expr [Stmt] [Stmt]
+    | While Expr [Stmt]
     deriving (Show, Eq)
 
-data Program
-  = Program [Decl] [Stmt]
+data TypeName
+    = BoolType
+    | IntType 
+    | AliasType String
     deriving (Show, Eq)
 
+data LValue 
+    = LId Ident
+    | LField Ident Ident
+    | LArray Ident Expr
+    | LArrayField Ident Expr Ident
+    deriving (Show, Eq)
+
+data Expr
+    = Lval LValue
+    | BoolLit Bool
+    | IntLit Int
+    | StrLit String
+    | BinOpExpr BinOp Expr Expr
+    | Lnot Expr
+    | Negate Expr
+    deriving (Show, Eq)
+
+data BinOp 
+    = Op_or
+    | Op_and
+    | Op_eq
+    | Op_neq
+    | Op_lt
+    | Op_lteq
+    | Op_gt
+    | Op_gteq
+    | Op_plus
+    | Op_minus
+    | Op_mult
+    | Op_divide
+    deriving (Show, Eq)
