@@ -1,5 +1,7 @@
 {
 module Scanner where
+
+import Data.Text (pack, unpack, replace)
 }
 
 %wrapper "posn"
@@ -8,8 +10,7 @@ $digit      = 0-9
 $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 @alpha      = [a-zA-Z]
 @digits     = $digit+
--- This doesn't handle escaped backslashes I think.
-@string     = \" [^\"]* \"
+@string     = \" ([^\"] | \\\")* \"
 @ident      = @alpha (@alpha | $digit | \_ | \')*
 @comment    = \# [^\n]* \n
 @symops     = "<-" | "<=" | ">=" | "!="
@@ -21,7 +22,11 @@ rules :-
   $white+   ;    -- skip white space
   @comment  ;    -- skip comments
   @digits   { (\p s -> (p, IntegerLit (read s :: Integer))) }
-  @string   { (\p s -> (p, StringLit . tail . init $ s)) }
+  @string   { (\p s -> (p, StringLit . unpack
+                           . (replace (pack "\\\"") (pack "\""))
+                           . (replace (pack "\\n") (pack "\n"))
+                           . (replace (pack "\\t") (pack "\t"))
+                           . pack . tail . init $ s)) }
   true      { (\p s -> (p, BooleanLit True)) }
   false     { (\p s -> (p, BooleanLit False)) }
   @symops   { (\p s -> (p, Symbol s)) }
