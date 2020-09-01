@@ -9,7 +9,6 @@ $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 @alpha      = [a-zA-Z]
 @digits     = $digit+
 -- This doesn't handle escaped backslashes I think.
--- Also need to find a nice way to strip the quotes from the returned value.
 @string     = \" [^\"]* \"
 @ident      = @alpha (@alpha | $digit | \_ | \')*
 @comment    = \# [^\n]* \n
@@ -22,7 +21,7 @@ rules :-
   $white+   ;    -- skip white space
   @comment  ;    -- skip comments
   @digits   { (\p s -> (p, IntegerLit (read s :: Integer))) }
-  @string   { (\p s -> (p, StringLit s)) }
+  @string   { (\p s -> (p, StringLit . tail . init $ s)) }
   true      { (\p s -> (p, BooleanLit True)) }
   false     { (\p s -> (p, BooleanLit False)) }
   @symops   { (\p s -> (p, Symbol s)) }
