@@ -19,7 +19,7 @@ data FieldDec
     deriving (Show, Eq)
 
 data ArrayDec
-    = ArrayDec Ident TypeName Int 
+    = ArrayDec Ident TypeName Integer
     deriving (Show, Eq)
 
 data Proc
@@ -61,7 +61,7 @@ data LValue
 data Expr
     = Lval LValue
     | BoolLit Bool
-    | IntLit Int
+    | IntLit Integer
     | StrLit String
     | BinOpExpr BinOp Expr Expr
     | Lnot Expr
