@@ -21,7 +21,7 @@ $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 rules :-
   $white+   ;    -- skip white space
   @comment  ;    -- skip comments
-  @digits   { (\p s -> (p, IntegerLit (read s :: Int))) }
+  @digits   { (\p s -> (p, IntegerLit (read s :: Integer))) }
   @string   { (\p s -> (p, StringLit s)) }
   true      { (\p s -> (p, BooleanLit True)) }
   false     { (\p s -> (p, BooleanLit False)) }
@@ -35,7 +35,7 @@ data Token
     = Identifier String
     | Keyword String
     | BooleanLit Bool
-    | IntegerLit Int
+    | IntegerLit Integer
     | StringLit String
     | Symbol String
     deriving (Eq, Show)
