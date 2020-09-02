@@ -23,9 +23,12 @@ rules :-
   @comment  ;    -- skip comments
   @digits   { (\p s -> (p, IntegerLit (read s :: Integer))) }
   @string   { (\p s -> (p, StringLit . unpack
+                           -- replace escaped quote (\") with literal quote (")
                            . (replace (pack "\\\"") (pack "\""))
+                           -- etc
                            . (replace (pack "\\n") (pack "\n"))
                            . (replace (pack "\\t") (pack "\t"))
+                           -- strip leading and trailing quotes
                            . pack . tail . init $ s)) }
   true      { (\p s -> (p, BooleanLit True)) }
   false     { (\p s -> (p, BooleanLit False)) }
