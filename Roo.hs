@@ -26,19 +26,9 @@ main
               TextPretty.pPrint . parse . alexScanTokens $ input
         Pprint
           -> do
-              putStrLn "Pprint"
-              {-
               let [_, filename] = args
-               input <- readFile filename
-               let output = ast input
-               case output of
-                 Right tree 
-                   -> putStrLn (pp tree)
-                 Left err 
-                   -> do putStrLn "Parse error at "
-                         print err
-                         exitWith (ExitFailure 2) 
-               -}
+              input <- readFile filename
+              pprint . parse . alexScanTokens $ input
         Lex
           -> do
               let [_, filename] = args

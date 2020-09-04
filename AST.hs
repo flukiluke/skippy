@@ -49,7 +49,12 @@ data TypeName
     = BoolType
     | IntType 
     | AliasType String
-    deriving (Show, Eq)
+    deriving (Eq)
+
+instance Show TypeName where
+    show BoolType = "boolean"
+    show IntType = "integer"
+    show (AliasType name) = name
 
 data LValue 
     = LId Ident
