@@ -15,7 +15,7 @@ $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 @comment    = \# [^\n]* \n
 @symops     = "<-" | "<=" | ">=" | "!="
 @keywords   =
-        and|array|assign|boolean|call|do|else|fi|if|integer|not|
+        and|array|boolean|call|do|else|fi|if|integer|not|
         od|or|procedure|read|record|then|val|while|write|writeln
 
 rules :-
