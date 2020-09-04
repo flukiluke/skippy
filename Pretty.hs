@@ -1,5 +1,6 @@
 module Pretty where
 import AST
+import Data.List (intercalate, intersperse)
 
 -- something?
 
@@ -15,7 +16,7 @@ pprint (Program records arrays procedures) = do
     if null records && null arrays
        then do return ()
        else do putStrLn ""
-    sequence $ fmap printProc procedures
+    sequence $ intersperse (putStrLn "") $ fmap printProc procedures
     return ()
 
 printRecord (RecordDec ident ((FieldDec id1 t1):fs)) = do
@@ -30,6 +31,11 @@ printArray (ArrayDec ident typename size)  = do
         ++ " " ++ show ident ++ ";"
     return ()
 
-printProc ps = do
-    putStrLn "procedure"
+printProc (Proc ident parameters vardecs stmts) = do
+    -- print header
+    putStrLn $ "procedure " ++ ident ++ " ("
+        ++ (intercalate ", " $ map show parameters) ++ ")"
+    sequence $ fmap (\x -> putStrLn $ "    " ++ show x ++ ";") vardecs
+    putStrLn "{"
+    putStrLn "}"
     return ()

@@ -1,4 +1,4 @@
-Roo: Roo.hs Scanner.hs Parser.hs Pretty.hs
+Roo: Roo.hs Scanner.hs Parser.hs Pretty.hs AST.hs
 	ghc Roo.hs
 
 Scanner.hs: Scanner.x

@@ -1,5 +1,7 @@
 module AST where
 
+import Data.List (intercalate)
+
 -----------------------------------
 -- Specification of an AST for Roo
 -----------------------------------
@@ -29,11 +31,17 @@ data Proc
 data Parameter
     = RefParam Ident TypeName
     | ValParam Ident TypeName
-    deriving (Show, Eq)
+    deriving (Eq)
+
+instance Show Parameter where
+    show (RefParam ident typename) = (show typename) ++ " " ++ ident
 
 data VarDec
     = VarDec [Ident] TypeName
-    deriving (Show, Eq)
+    deriving (Eq)
+
+instance Show VarDec where
+    show (VarDec idents typename) = (show typename) ++ " " ++ (intercalate ", " idents)
 
 data Stmt 
     = Assign LValue Expr
