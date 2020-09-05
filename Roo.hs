@@ -3,7 +3,6 @@
 module Main (main) where
 import System.Environment (getProgName, getArgs)
 import System.Exit (exitWith, ExitCode(..))
-import Text.Pretty.Simple as TextPretty (pPrint)
 import Scanner (alexScanTokens)
 import Parser (parse)
 import Pretty (pprint)
@@ -23,7 +22,7 @@ main
           -> do
               let [_, filename] = args
               input <- readFile filename
-              TextPretty.pPrint . parse . alexScanTokens $ input
+              putStrLn . show . parse . alexScanTokens $ input
         Pprint
           -> do
               let [_, filename] = args
@@ -33,7 +32,7 @@ main
           -> do
               let [_, filename] = args
               input <- readFile filename
-              TextPretty.pPrint . alexScanTokens $ input
+              putStrLn . show . alexScanTokens $ input
 
 checkArgs :: String -> [String] -> IO Task
 checkArgs _ ['-':_]
