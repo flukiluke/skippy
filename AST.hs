@@ -18,7 +18,10 @@ data RecordDec
     
 data FieldDec
     = FieldDec Ident TypeName
-    deriving (Show, Eq)
+    deriving (Eq)
+
+instance Show FieldDec where
+    show (FieldDec ident typename) = (show typename) ++ " " ++ ident
 
 data ArrayDec
     = ArrayDec Ident TypeName Integer
@@ -35,6 +38,7 @@ data Parameter
 
 instance Show Parameter where
     show (RefParam ident typename) = (show typename) ++ " " ++ ident
+    show (ValParam ident typename) = (show typename) ++ " val " ++ ident
 
 data VarDec
     = VarDec [Ident] TypeName
@@ -94,4 +98,18 @@ data BinOp
     | Op_minus
     | Op_mult
     | Op_divide
-    deriving (Show, Eq)
+    deriving (Eq)
+
+instance Show BinOp where
+    show Op_or = "or"
+    show Op_and = "and"
+    show Op_eq = "="
+    show Op_neq = "!="
+    show Op_lt = "<"
+    show Op_lteq = "<="
+    show Op_gt = ">"
+    show Op_gteq = ">="
+    show Op_plus = "+"
+    show Op_minus = "-"
+    show Op_mult = "*"
+    show Op_divide = "/"
