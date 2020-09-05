@@ -161,7 +161,7 @@ Expr        : Lvalue                                        { Lval $1 }
             | '(' Expr ')'                                  { $2 }
             | Expr or Expr                                  { BinOpExpr Op_or $1 $3 }
             | Expr and Expr                                 { BinOpExpr Op_and $1 $3 }
-            | not Expr                                      { Lnot $2 }
+            | not Expr                                      { PreOpExpr Op_not $2 }
             | Expr '=' Expr                                 { BinOpExpr Op_eq $1 $3 }
             | Expr '!=' Expr                                { BinOpExpr Op_neq $1 $3 }
             | Expr '<' Expr                                 { BinOpExpr Op_lt $1 $3 }
@@ -172,12 +172,12 @@ Expr        : Lvalue                                        { Lval $1 }
             | Expr '-' Expr                                 { BinOpExpr Op_minus $1 $3 }
             | Expr '*' Expr                                 { BinOpExpr Op_mult $1 $3 }
             | Expr '/' Expr                                 { BinOpExpr Op_divide $1 $3 }
-            | '-' Expr %prec negate                         { Negate $2 }
+            | '-' Expr %prec negate                         { PreOpExpr Op_negate $2 }
 
 {
 parseError :: ([(AlexPosn, Token)], [String]) -> a
 parseError ((AlexPn _ row col, t):ts, explist)
-    = error ("Parse error on line " ++
+    = errorWithoutStackTrace ("Parse error on line " ++
             (show row) ++ ", column " ++ (show col) ++
             ". Got " ++ (show t) ++ " but expected one of: " ++
             (intercalate ", " explist))

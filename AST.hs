@@ -81,9 +81,18 @@ data Expr
     | IntLit Integer
     | StrLit String
     | BinOpExpr BinOp Expr Expr
-    | Lnot Expr
-    | Negate Expr
+    | PreOpExpr PreOp Expr
     deriving (Show, Eq)
+
+-- Prefix operator
+data PreOp
+    = Op_negate
+    | Op_not
+    deriving (Eq)
+
+instance Show PreOp where
+    show Op_negate = "-"
+    show Op_not = "not "
 
 data BinOp 
     = Op_or

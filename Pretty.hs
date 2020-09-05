@@ -105,13 +105,45 @@ printExpr (Lval lval) = printLval lval
 printExpr (BoolLit bool) = putStr (show bool)
 printExpr (IntLit int) = putStr (show int)
 printExpr (StrLit str) = putStr (show str)
-printExpr (BinOpExpr op expr1 expr2) = do
-    printExpr expr1
+printExpr e@(BinOpExpr op expr1 expr2) = do
+    if precedence e > precedence expr1
+       then do
+           putStr "("
+           printExpr expr1
+           putStr ")"
+       else printExpr expr1
     putStr $ " " ++ show op ++ " "
-    printExpr expr2
-printExpr (Lnot expr) = do
-    putStr "not "
-    printExpr expr
-printExpr (Negate expr) = do
-    putStr "-"
-    printExpr expr
+    if precedence e >= precedence expr2
+       then do
+           putStr "("
+           printExpr expr2
+           putStr ")"
+       else printExpr expr2
+printExpr e@(PreOpExpr op expr) = do
+    putStr $ show op
+    if precedence e > precedence expr
+       then do
+           putStr "("
+           printExpr expr
+           putStr ")"
+       else printExpr expr
+
+precedence :: Expr -> Int
+precedence (BinOpExpr Op_or _ _) = 2
+precedence (BinOpExpr Op_and _ _) = 3
+precedence (PreOpExpr Op_not _) = 4
+precedence (BinOpExpr Op_eq _ _) = 4
+precedence (BinOpExpr Op_neq _ _) = 4
+precedence (BinOpExpr Op_lt _ _) = 4
+precedence (BinOpExpr Op_lteq _ _) = 4
+precedence (BinOpExpr Op_gt _ _) = 4
+precedence (BinOpExpr Op_gteq _ _) = 4
+precedence (BinOpExpr Op_plus _ _) = 5
+precedence (BinOpExpr Op_minus _ _) = 5
+precedence (BinOpExpr Op_mult _ _) = 6
+precedence (BinOpExpr Op_divide _ _) = 6
+precedence (PreOpExpr Op_negate _) = 7
+precedence (Lval _) = 8
+precedence (BoolLit _) = 8
+precedence (IntLit _) = 8
+precedence (StrLit _) = 8
