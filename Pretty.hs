@@ -10,6 +10,8 @@ printRecord :: RecordDec -> IO()
 printArray :: ArrayDec -> IO()
 printProc :: Proc -> IO()
 printStmt :: Int -> Stmt -> IO()
+printExpr :: Expr -> String
+printLval :: LValue -> String
 
 whitespace :: Int -> String
 
@@ -45,10 +47,10 @@ printProc (Proc ident parameters vardecs stmts) = do
     putStrLn "}"
 
 printStmt indent (Assign lval expr) = do
-    putStrLn $ whitespace indent ++ show lval ++ " <- " ++ show expr ++ ";"
+    putStrLn $ whitespace indent ++ printLval lval ++ " <- " ++ show expr ++ ";"
 
 printStmt indent (Read lval) = do
-    putStrLn $ whitespace indent ++ "write " ++ show lval ++ ";"
+    putStrLn $ whitespace indent ++ "write " ++ printLval lval ++ ";"
 
 printStmt indent (Write expr) = do
     putStrLn $ whitespace indent ++ "write " ++ show expr ++ ";"
@@ -74,3 +76,10 @@ printStmt indent (While expr stmts) = do
     putStrLn $ whitespace indent ++ "while " ++ show expr
     sequence $ fmap (printStmt $ indent + 1) stmts
     putStrLn $ whitespace indent ++ "od"
+
+printLval (LId ident) = ident
+printLval (LField id1 id2) = id1 ++ "." ++ id2
+printLval (LArray ident expr) = ident ++ "[" ++ show expr ++ "]"
+printLval (LArrayField id1 expr id2) = id1 ++ "[" ++ show expr ++ "]." ++ id2
+
+printExpr _ = ""
