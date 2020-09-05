@@ -47,23 +47,23 @@ printProc (Proc ident parameters vardecs stmts) = do
     putStrLn "}"
 
 printStmt indent (Assign lval expr) = do
-    putStrLn $ whitespace indent ++ printLval lval ++ " <- " ++ show expr ++ ";"
+    putStrLn $ whitespace indent ++ printLval lval ++ " <- " ++ printExpr expr ++ ";"
 
 printStmt indent (Read lval) = do
     putStrLn $ whitespace indent ++ "write " ++ printLval lval ++ ";"
 
 printStmt indent (Write expr) = do
-    putStrLn $ whitespace indent ++ "write " ++ show expr ++ ";"
+    putStrLn $ whitespace indent ++ "write " ++ printExpr expr ++ ";"
 
 printStmt indent (WriteLn expr) = do
-    putStrLn $ whitespace indent ++ "writeln " ++ show expr ++ ";"
+    putStrLn $ whitespace indent ++ "writeln " ++ printExpr expr ++ ";"
 
 printStmt indent (Call ident exprs) = do
-    putStrLn $ whitespace indent ++ "call " ++ ident ++ " ("
-        ++ (intercalate ", " $ map show exprs) ++ ");"
+    putStrLn $ whitespace indent ++ "call " ++ ident ++ "("
+        ++ (intercalate ", " $ map printExpr exprs) ++ ");"
 
 printStmt indent (If expr stmts1 stmts2) = do
-    putStrLn $ whitespace indent ++ "if " ++ show expr ++ " then"
+    putStrLn $ whitespace indent ++ "if " ++ printExpr expr ++ " then"
     sequence $ fmap (printStmt $ indent + 1) stmts1
     if null stmts2
        then do putStrLn $ whitespace indent ++ "fi"
@@ -73,13 +73,19 @@ printStmt indent (If expr stmts1 stmts2) = do
            putStrLn $ whitespace indent ++ "fi"
 
 printStmt indent (While expr stmts) = do
-    putStrLn $ whitespace indent ++ "while " ++ show expr
+    putStrLn $ whitespace indent ++ "while " ++ printExpr expr
     sequence $ fmap (printStmt $ indent + 1) stmts
     putStrLn $ whitespace indent ++ "od"
 
 printLval (LId ident) = ident
 printLval (LField id1 id2) = id1 ++ "." ++ id2
-printLval (LArray ident expr) = ident ++ "[" ++ show expr ++ "]"
-printLval (LArrayField id1 expr id2) = id1 ++ "[" ++ show expr ++ "]." ++ id2
+printLval (LArray ident expr) = ident ++ "[" ++ printExpr expr ++ "]"
+printLval (LArrayField id1 expr id2) = id1 ++ "[" ++ printExpr expr ++ "]." ++ id2
 
-printExpr _ = ""
+printExpr (Lval lval) = printLval lval
+printExpr (BoolLit bool) = show bool
+printExpr (IntLit int) = show int
+printExpr (StrLit str) = "\"" ++ str ++ "\""
+printExpr (BinOpExpr op expr1 expr2) = printExpr expr1 ++ " " ++ show op ++ " " ++ printExpr expr2
+printExpr (Lnot expr) = "not " ++ printExpr expr
+printExpr (Negate expr) = "-" ++ printExpr expr
