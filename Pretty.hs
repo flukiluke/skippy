@@ -2,16 +2,14 @@ module Pretty where
 import AST
 import Data.List (intercalate, intersperse)
 
--- something?
-
 pprint :: Program -> IO()
 
 printRecord :: RecordDec -> IO()
 printArray :: ArrayDec -> IO()
 printProc :: Proc -> IO()
 printStmt :: Int -> Stmt -> IO()
-printExpr :: Expr -> String
-printLval :: LValue -> String
+printExpr :: Expr -> IO()
+printLval :: LValue -> IO()
 
 whitespace :: Int -> String
 
@@ -47,23 +45,36 @@ printProc (Proc ident parameters vardecs stmts) = do
     putStrLn "}"
 
 printStmt indent (Assign lval expr) = do
-    putStrLn $ whitespace indent ++ printLval lval ++ " <- " ++ printExpr expr ++ ";"
+    putStr $ whitespace indent
+    printLval lval
+    putStr " <- "
+    printExpr expr
+    putStrLn ";"
 
 printStmt indent (Read lval) = do
-    putStrLn $ whitespace indent ++ "write " ++ printLval lval ++ ";"
+    putStr $ whitespace indent ++ "write "
+    printLval lval
+    putStrLn ";"
 
 printStmt indent (Write expr) = do
-    putStrLn $ whitespace indent ++ "write " ++ printExpr expr ++ ";"
+    putStr $ whitespace indent ++ "write "
+    printExpr expr
+    putStrLn ";"
 
 printStmt indent (WriteLn expr) = do
-    putStrLn $ whitespace indent ++ "writeln " ++ printExpr expr ++ ";"
+    putStr $ whitespace indent ++ "writeln "
+    printExpr expr
+    putStrLn ";"
 
 printStmt indent (Call ident exprs) = do
-    putStrLn $ whitespace indent ++ "call " ++ ident ++ "("
-        ++ (intercalate ", " $ map printExpr exprs) ++ ");"
+    putStr $ whitespace indent ++ "call " ++ ident ++ "("
+    sequence $ intersperse (putStr ", ") $ fmap printExpr exprs
+    putStrLn ");"
 
 printStmt indent (If expr stmts1 stmts2) = do
-    putStrLn $ whitespace indent ++ "if " ++ printExpr expr ++ " then"
+    putStr $ whitespace indent ++ "if "
+    printExpr expr
+    putStrLn " then"
     sequence $ fmap (printStmt $ indent + 1) stmts1
     if null stmts2
        then do putStrLn $ whitespace indent ++ "fi"
@@ -73,19 +84,34 @@ printStmt indent (If expr stmts1 stmts2) = do
            putStrLn $ whitespace indent ++ "fi"
 
 printStmt indent (While expr stmts) = do
-    putStrLn $ whitespace indent ++ "while " ++ printExpr expr
+    putStr $ whitespace indent ++ "while "
+    printExpr expr
+    putStrLn ""
     sequence $ fmap (printStmt $ indent + 1) stmts
     putStrLn $ whitespace indent ++ "od"
 
-printLval (LId ident) = ident
-printLval (LField id1 id2) = id1 ++ "." ++ id2
-printLval (LArray ident expr) = ident ++ "[" ++ printExpr expr ++ "]"
-printLval (LArrayField id1 expr id2) = id1 ++ "[" ++ printExpr expr ++ "]." ++ id2
+printLval (LId ident) = putStr ident
+printLval (LField id1 id2) = putStr $ id1 ++ "." ++ id2
+printLval (LArray ident expr) = do
+    putStr $ ident ++ "["
+    printExpr expr
+    putStr "]"
+printLval (LArrayField id1 expr id2) = do
+    putStr $ id1 ++ "["
+    printExpr expr 
+    putStr $ "]." ++ id2
 
 printExpr (Lval lval) = printLval lval
-printExpr (BoolLit bool) = show bool
-printExpr (IntLit int) = show int
-printExpr (StrLit str) = "\"" ++ str ++ "\""
-printExpr (BinOpExpr op expr1 expr2) = printExpr expr1 ++ " " ++ show op ++ " " ++ printExpr expr2
-printExpr (Lnot expr) = "not " ++ printExpr expr
-printExpr (Negate expr) = "-" ++ printExpr expr
+printExpr (BoolLit bool) = putStr (show bool)
+printExpr (IntLit int) = putStr (show int)
+printExpr (StrLit str) = putStr (show str)
+printExpr (BinOpExpr op expr1 expr2) = do
+    printExpr expr1
+    putStr $ " " ++ show op ++ " "
+    printExpr expr2
+printExpr (Lnot expr) = do
+    putStr "not "
+    printExpr expr
+printExpr (Negate expr) = do
+    putStr "-"
+    printExpr expr
