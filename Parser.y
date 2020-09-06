@@ -9,8 +9,6 @@ import AST
 %tokentype { (AlexPosn, Token) }
 %error { parseError }
 %errorhandlertype explist
--- S/R warnings due to some of the optional components; shift action is fine
-%expect 5
 
 %token
     -- Literals
@@ -84,7 +82,6 @@ stolen from GHC's happy grammar.
 Program     : RecordDecs ArrayDecs ProcDecs                 { Program (reverse $1) (reverse $2) (reverse $3) }
 
 RecordDecs  : {- empty -}                                   { [] }
-            | RecordDec                                     { [$1] }
             | RecordDecs RecordDec                          { $2 : $1 }
 
 RecordDec   : record '{' FieldDecs '}' id ';'               { RecordDec $5 (reverse $3) }
@@ -96,7 +93,6 @@ FieldDec    : boolean id                                    { FieldDec $2 BoolTy
             | integer id                                    { FieldDec $2 IntType }
 
 ArrayDecs   : {- empty -}                                   { [] }
-            | ArrayDec                                      { [$1] }
             | ArrayDecs ArrayDec                            { $2 : $1 }
 
 ArrayDec    : array '[' integer_lit ']' ArrayType id ';'    { ArrayDec $6 $5 $3 }
@@ -121,7 +117,6 @@ Parameter   : id id                                         { RefParam $2 (Alias
             | integer val id                                { ValParam $3 IntType }
 
 LocalVarDecs : {- empty -}                                  { [] }
-             | LocalVarDec                                  { [$1] }
              | LocalVarDecs LocalVarDec                     { $2 : $1 }
 
 LocalVarDec : id LocalVars ';'                              { VarDec (reverse $2) (AliasType $1) }
