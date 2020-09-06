@@ -101,11 +101,20 @@ printLval (LArrayField id1 expr id2) = do
     printExpr expr 
     putStr $ "]." ++ id2
 
+rooEscape :: String -> String
+rooEscape ('\n':xs) = '\\':'n':(rooEscape xs)
+rooEscape ('\t':xs) = '\\':'t':(rooEscape xs)
+rooEscape ('\"':xs) = '\\':'"':(rooEscape xs)
+rooEscape (x:xs) = x:(rooEscape xs)
+rooEscape x = x
+
 printExpr (Lval lval) = printLval lval
 printExpr (BoolLit True) = putStr "true"
 printExpr (BoolLit False) = putStr "false"
 printExpr (IntLit int) = putStr (show int)
-printExpr (StrLit str) = putStr (show str)
+-- We can't use (show str) because that doesn't handle unicode characters,
+-- as per the accounting.roo example program.
+printExpr (StrLit str) = putStr ('"' : (rooEscape str) ++ "\"")
 printExpr e@(BinOpExpr op expr1 expr2) = do
     if precedence e > precedence expr1
        then do
