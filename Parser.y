@@ -174,6 +174,7 @@ parseError :: ([(AlexPosn, Token)], [String]) -> a
 parseError ((AlexPn _ row col, t):ts, explist)
     = errorWithoutStackTrace ("Parse error on line " ++
             (show row) ++ ", column " ++ (show col) ++
-            ". Got " ++ (show t) ++ " but expected one of: " ++
-            (intercalate ", " explist))
+            ". Got " ++ (show t) ++ case (length explist) of 0 -> ""
+                                                             1 -> " but expected " ++ (head explist)
+                                                             _ -> " but expected one of " ++ (intercalate ", " explist))
 }
