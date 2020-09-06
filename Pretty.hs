@@ -52,7 +52,7 @@ printStmt indent (Assign lval expr) = do
     putStrLn ";"
 
 printStmt indent (Read lval) = do
-    putStr $ whitespace indent ++ "write "
+    putStr $ whitespace indent ++ "read "
     printLval lval
     putStrLn ";"
 
@@ -86,7 +86,7 @@ printStmt indent (If expr stmts1 stmts2) = do
 printStmt indent (While expr stmts) = do
     putStr $ whitespace indent ++ "while "
     printExpr expr
-    putStrLn ""
+    putStrLn " do"
     sequence $ fmap (printStmt $ indent + 1) stmts
     putStrLn $ whitespace indent ++ "od"
 
@@ -102,7 +102,8 @@ printLval (LArrayField id1 expr id2) = do
     putStr $ "]." ++ id2
 
 printExpr (Lval lval) = printLval lval
-printExpr (BoolLit bool) = putStr (show bool)
+printExpr (BoolLit True) = putStr "true"
+printExpr (BoolLit False) = putStr "false"
 printExpr (IntLit int) = putStr (show int)
 printExpr (StrLit str) = putStr (show str)
 printExpr e@(BinOpExpr op expr1 expr2) = do
