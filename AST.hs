@@ -1,10 +1,19 @@
+-- Skippy, a compiler for the Roo language.
+--
+-- Submitted for assignment 1a of COMP90045, 2020
+-- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
+-- 16 September 2020
+--
+-- This program is licensed under the MIT license; see the LICENCE file for
+-- full details.
+--
+-- This is the structure of the Abstract Syntax Tree used parsing the input
+-- program. It also includes some basic show definitions to assist pretty
+-- printing.
+
 module AST where
 
 import Data.List (intercalate)
-
------------------------------------
--- Specification of an AST for Roo
------------------------------------
 
 type Ident = String
 
@@ -45,22 +54,24 @@ data VarDec
     deriving (Eq)
 
 instance Show VarDec where
-    show (VarDec idents typename) = (show typename) ++ " " ++ (intercalate ", " idents)
+    show (VarDec idents typename)
+      = (show typename) ++ " " ++ (intercalate ", " idents)
 
 data Stmt 
-    = Assign LValue Expr
-    | Read LValue
-    | Write Expr
-    | WriteLn Expr
-    | Call Ident [Expr]
-    | If Expr [Stmt] [Stmt]
-    | While Expr [Stmt]
+    = Assign LValue Expr     -- Assign Expr to LValue
+    | Read LValue            -- Read number input LValue
+    | Write Expr             -- Write expr to output
+    | WriteLn Expr           -- Write expr to output, with new line
+    | Call Ident [Expr]      -- Call procedure Ident with parameters [Expr]
+    | If Expr [Stmt] [Stmt]  -- Execute first [Stmt] if Expr is true,
+                             -- second [Expr] otherwise
+    | While Expr [Stmt]      -- Execute [Stmt] while Expr is true
     deriving (Show, Eq)
 
 data TypeName
     = BoolType
     | IntType 
-    | AliasType String
+    | AliasType String       -- This is for record and array types
     deriving (Eq)
 
 instance Show TypeName where
@@ -69,10 +80,10 @@ instance Show TypeName where
     show (AliasType name) = name
 
 data LValue 
-    = LId Ident
-    | LField Ident Ident
-    | LArray Ident Expr
-    | LArrayField Ident Expr Ident
+    = LId Ident                      -- Basic variable
+    | LField Ident Ident             -- Record field
+    | LArray Ident Expr              -- Array element
+    | LArrayField Ident Expr Ident   -- Field of array element
     deriving (Show, Eq)
 
 data Expr
@@ -84,7 +95,7 @@ data Expr
     | PreOpExpr PreOp Expr
     deriving (Show, Eq)
 
--- Prefix operator
+-- Prefix operators
 data PreOp
     = Op_negate
     | Op_not
@@ -94,6 +105,7 @@ instance Show PreOp where
     show Op_negate = "-"
     show Op_not = "not "
 
+-- Binary infix operators
 data BinOp 
     = Op_or
     | Op_and

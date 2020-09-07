@@ -1,4 +1,16 @@
--- cabal install alex happy pretty-print
+-- Skippy, a compiler for the Roo language.
+--
+-- Submitted for assignment 1a of COMP90045, 2020
+-- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
+-- 16 September 2020
+--
+-- This program is licensed under the MIT license; see the LICENCE file for
+-- full details.
+--
+-- This is the main program. To compile this program you will need GHC, the
+-- Glasgow Haskell Compiler. Then:
+-- $ cabal install alex happy
+-- $ make
 
 module Main (main) where
 import System.Environment (getProgName, getArgs)
@@ -18,16 +30,20 @@ main
       args <- getArgs
       task <- checkArgs progname args
       case task of
+        -- Dump AST with no particular format
         Parse
           -> do
               let [_, filename] = args
               input <- readFile filename
               putStrLn . show . parse . alexScanTokens $ input
+        -- Pretty print the input program; format then suitable for input
         Pprint
           -> do
               let [_, filename] = args
               input <- readFile filename
               pprint . parse . alexScanTokens $ input
+        -- Dump Lexer tokens. This option is not in the Roo spec, but
+        -- convenient for debugging.
         Lex
           -> do
               let [_, filename] = args

@@ -1,20 +1,21 @@
-module Pretty where
+-- Skippy, a compiler for the Roo language.
+--
+-- Submitted for assignment 1a of COMP90045, 2020
+-- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
+-- 16 September 2020
+--
+-- This program is licensed under the MIT license; see the LICENCE file for
+-- full details.
+--
+-- This file exports the pprint function, which pretty prints a Roo program.
+module Pretty (pprint) where
 import AST
 import Data.List (intercalate, intersperse)
 
+-- Various functions for printing parts of a program. They operate by composing
+-- IO() monads; formatting rules are taken directly from the assignment spec.
+
 pprint :: Program -> IO()
-
-printRecord :: RecordDec -> IO()
-printArray :: ArrayDec -> IO()
-printProc :: Proc -> IO()
-printStmt :: Int -> Stmt -> IO()
-printExpr :: Expr -> IO()
-printLval :: LValue -> IO()
-
-whitespace :: Int -> String
-
-whitespace i = concat $ take i $ repeat "    "
-
 pprint (Program records arrays procedures) = do
     sequence $ fmap printRecord records
     sequence $ fmap printArray arrays
@@ -24,17 +25,20 @@ pprint (Program records arrays procedures) = do
     sequence $ intersperse (putStrLn "") $ fmap printProc procedures
     return ()
 
+printRecord :: RecordDec -> IO()
 printRecord (RecordDec ident ((FieldDec id1 t1):fs)) = do
     putStrLn "record"
     putStrLn $ "    { " ++ show t1 ++ " " ++ id1
     sequence $ fmap (\f -> putStrLn $ "    ; " ++ show f) fs
     putStrLn $ "    } " ++ ident ++ ";"
 
+printArray :: ArrayDec -> IO()
 printArray (ArrayDec ident typename size)  = do
     putStrLn $ "array[" ++ show size ++ "] " ++ show typename
         ++ " " ++ ident ++ ";"
     return ()
 
+printProc :: Proc -> IO()
 printProc (Proc ident parameters vardecs stmts) = do
     -- print header
     putStrLn $ "procedure " ++ ident ++ " ("
@@ -44,6 +48,7 @@ printProc (Proc ident parameters vardecs stmts) = do
     sequence $ fmap (printStmt 1) stmts
     putStrLn "}"
 
+printStmt :: Int -> Stmt -> IO()
 printStmt indent (Assign lval expr) = do
     putStr $ whitespace indent
     printLval lval
@@ -90,6 +95,7 @@ printStmt indent (While expr stmts) = do
     sequence $ fmap (printStmt $ indent + 1) stmts
     putStrLn $ whitespace indent ++ "od"
 
+printLval :: LValue -> IO()
 printLval (LId ident) = putStr ident
 printLval (LField id1 id2) = putStr $ id1 ++ "." ++ id2
 printLval (LArray ident expr) = do
@@ -101,20 +107,16 @@ printLval (LArrayField id1 expr id2) = do
     printExpr expr 
     putStr $ "]." ++ id2
 
-rooEscape :: String -> String
-rooEscape ('\n':xs) = '\\':'n':(rooEscape xs)
-rooEscape ('\t':xs) = '\\':'t':(rooEscape xs)
-rooEscape ('\"':xs) = '\\':'"':(rooEscape xs)
-rooEscape (x:xs) = x:(rooEscape xs)
-rooEscape x = x
-
+printExpr :: Expr -> IO()
+-- We can't use (show str) because that doesn't handle unicode characters,
+-- as per the accounting.roo example program.
+printExpr (StrLit str) = putStr ('"' : (rooEscape str) ++ "\"")
 printExpr (Lval lval) = printLval lval
 printExpr (BoolLit True) = putStr "true"
 printExpr (BoolLit False) = putStr "false"
 printExpr (IntLit int) = putStr (show int)
--- We can't use (show str) because that doesn't handle unicode characters,
--- as per the accounting.roo example program.
-printExpr (StrLit str) = putStr ('"' : (rooEscape str) ++ "\"")
+-- Insert parentheses whereever the natural precedence differs from the
+-- actual parse tree.
 printExpr e@(BinOpExpr op expr1 expr2) = do
     if precedence e > precedence expr1
        then do
@@ -138,6 +140,25 @@ printExpr e@(PreOpExpr op expr) = do
            putStr ")"
        else printExpr expr
 
+--
+-- Helper functions
+--
+
+-- Converts special characters back to backslash escapes
+rooEscape :: String -> String
+rooEscape ('\n':xs) = '\\':'n':(rooEscape xs)
+rooEscape ('\t':xs) = '\\':'t':(rooEscape xs)
+rooEscape ('\"':xs) = '\\':'"':(rooEscape xs)
+rooEscape (x:xs) = x:(rooEscape xs)
+rooEscape x = x
+
+-- Generate sufficient whitespace for i levels of indent
+whitespace :: Int -> String
+whitespace i = concat $ take i $ repeat "    "
+
+-- Provides precedence values of various operators, equivalent to the
+-- precedence declarations in the Happy parser. Used for adding parentheses
+-- in the right spots.
 precedence :: Expr -> Int
 precedence (BinOpExpr Op_or _ _) = 1
 precedence (BinOpExpr Op_and _ _) = 2
