@@ -15,7 +15,7 @@
 module Main (main) where
 import System.Environment (getProgName, getArgs)
 import System.Exit (exitWith, ExitCode(..))
-import Scanner (runAlex)
+import Scanner (scan)
 import Parser (parse)
 import Pretty (pprint)
 
@@ -35,7 +35,13 @@ main
           -> do
               let [_, filename] = args
               input <- readFile filename
-              putStrLn . show $ runAlex input parse
+              let output = scan input parse
+              case output of
+                Right ast
+                  -> putStrLn (show ast)
+                Left err
+                  -> do putStrLn err
+                        exitWith (ExitFailure 2)
               -- putStrLn . show . (runAlex parse input)
         -- Pretty print the input program; format then suitable for input
         Pprint

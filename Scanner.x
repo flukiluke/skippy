@@ -12,9 +12,10 @@
 module Scanner where
 
 import Data.Text (pack, unpack, replace)
+import Control.Monad (liftM)
 }
 
-%wrapper "monad"
+%wrapper "monadUserState"
 
 $digit      = 0-9
 $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
@@ -51,6 +52,7 @@ type AlexInput = (AlexPosn, -- current position,
 
 alexEOF :: Alex (AlexPosn, Token)
 alexEOF = return (undefined, EOF)
+
 data Token
     = Identifier String
     | Keyword String
@@ -84,6 +86,24 @@ lex_str (p,_,_,str) len = return (p, StringLit . unpack
         -- strip leading and trailing quotes
         . pack . tail . take (len - 1) $ str)
 
+-- Used to hold the original input for error reporting
+data AlexUserState = AlexUserState { original :: String }
+
+alexInitUserState :: AlexUserState
+alexInitUserState = AlexUserState ""
+
+setOriginalInput :: String -> Alex ()
+setOriginalInput = alexSetUserState . AlexUserState
+
+lineContent :: String -> Int -> String
+lineContent content linenum = lines content !! linenum
+
+fancyErrorMessage :: AlexPosn -> String -> String -> String
+fancyErrorMessage (AlexPn _ row col) source msg
+    = (lineContent source (row - 1)) ++ "\n" ++
+        (take (col - 1) (repeat ' ')) ++ "^\n" ++
+        (show row) ++ ":" ++ (show col) ++ ": " ++ msg
+        
 -- Alex insists on hardcoding a call from alexMonadScan to alexError with no
 -- way to intercept it, so we give our own alexMonadScan that calls our own
 -- error function (this function basically copied from the standard alex
@@ -94,14 +114,20 @@ alexMonadScan' = do
     sc <- alexGetStartCode
     case alexScan inp sc of
         AlexEOF -> alexEOF
-        AlexError (p,c,_,_) -> alexError' p $ "Unexpected '" ++ c : "' here"
+        AlexError (AlexPn offset row col,c,_,_)
+            -> alexError' (AlexPn offset row (col - 1))
+                          ("Unexpected '" ++ c : "' here")
         AlexSkip inp' len -> do
             alexSetInput inp'
-            alexMonadScan
+            alexMonadScan'
         AlexToken inp' len action -> do
             alexSetInput inp'
             action (ignorePendingBytes inp) len
 
+scan :: String -> Alex a -> Either String a
+scan input a = runAlex input (setOriginalInput input >> a)
+
 alexError' :: AlexPosn -> String -> Alex a
-alexError' p = errorWithoutStackTrace
+alexError' p msg = Alex (\s -> let source = original . alex_ust $ s
+                               in Left $ fancyErrorMessage p source msg)
 }

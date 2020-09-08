@@ -210,6 +210,9 @@ parseError ((AlexPn _ row col, t):ts, explist)
         1 -> " but expected " ++ (head explist)
         _ -> " but expected one of " ++ (intercalate ", " explist))
 -}
+
+-- On error, just redirect to the alex error function because we want
+-- to handle them in the same way.
 parseError :: (AlexPosn, Token) -> Alex a
 parseError (p, t) = alexError' p ("Unexpected " ++ (show t) ++ " here")
 
