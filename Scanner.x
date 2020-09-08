@@ -100,9 +100,9 @@ lineContent content linenum = lines content !! linenum
 
 fancyErrorMessage :: AlexPosn -> String -> String -> String
 fancyErrorMessage (AlexPn _ row col) source msg
-    = (lineContent source (row - 1)) ++ "\n" ++
-        (take (col - 1) (repeat ' ')) ++ "^\n" ++
-        "Line " ++ (show row) ++ ", column " ++ (show col) ++ ": " ++ msg
+    = "Line " ++ (show row) ++ " column " ++ (show col) ++ ": error: " ++ msg ++
+        "\n\n" ++ (lineContent source (row - 1)) ++
+        "\n" ++ (take (col - 1) (repeat ' ')) ++ "^ error here"
         
 -- Alex insists on hardcoding a call from alexMonadScan to alexError with no
 -- way to intercept it, so we give our own alexMonadScan that calls our own

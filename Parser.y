@@ -21,7 +21,7 @@ import AST
 %lexer { lexwrap } { (_, EOF) }
 %error { parseError }
 -- Requires Happy version 1.19.7 or greater
--- %errorhandlertype explist
+%errorhandlertype explist
 
 -- Note: the first element of each tuple is Alex position info
 %token
@@ -197,24 +197,17 @@ Expr        : Lvalue                              { Lval $1 }
             | '-' Expr %prec negate               { PreOpExpr Op_negate $2 }
 
 {
--- This function gets called on a parse error. It tries to print a nicely
--- formatted list of tokens that we expected (this may or may not be useful
--- to the programmer).
-{-
-parseError :: ([(AlexPosn, Token)], [String]) -> a
-parseError ((AlexPn _ row col, t):ts, explist)
-    = errorWithoutStackTrace ("Parse error on line " ++
-      (show row) ++ ", column " ++ (show col) ++
-      ". Got " ++ (show t) ++ case (length explist) of
-        0 -> ""
-        1 -> " but expected " ++ (head explist)
-        _ -> " but expected one of " ++ (intercalate ", " explist))
--}
-
--- On error, just redirect to the alex error function because we want
--- to handle them in the same way.
-parseError :: (AlexPosn, Token) -> Alex a
-parseError (p, t) = alexError' p ("Unexpected " ++ (show t) ++ " here")
+-- This function gets called on a parse error. It tries to generate a list of
+-- tokens that we expected (this may or may not be useful to the programmer).
+-- It redirects to the alex error function because we ultimately want to
+-- handle them in the same way.
+parseError :: ((AlexPosn, Token), [String]) -> Alex a
+parseError ((p, t), explist)
+    = alexError' p (case (length explist) of
+        0 -> "Unexpected " ++ (show t) ++ " here."
+        1 -> "Got " ++ (show t) ++ " here but expected " ++ (head explist)
+        _ -> "Got " ++ (show t) ++ " but expected one of: "
+                ++ (intercalate ", " explist))
 
 -- As recommended by the Happy manual, this wrapper makes the types of
 -- everything match up.
