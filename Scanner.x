@@ -83,4 +83,25 @@ lex_str (p,_,_,str) len = return (p, StringLit . unpack
         . (replace (pack "\\t") (pack "\t"))
         -- strip leading and trailing quotes
         . pack . tail . take (len - 1) $ str)
+
+-- Alex insists on hardcoding a call from alexMonadScan to alexError with no
+-- way to intercept it, so we give our own alexMonadScan that calls our own
+-- error function (this function basically copied from the standard alex
+-- generated code).
+alexMonadScan' :: Alex (AlexPosn, Token)
+alexMonadScan' = do
+    inp <- alexGetInput
+    sc <- alexGetStartCode
+    case alexScan inp sc of
+        AlexEOF -> alexEOF
+        AlexError (p,c,_,_) -> alexError' p $ "Unexpected '" ++ c : "' here"
+        AlexSkip inp' len -> do
+            alexSetInput inp'
+            alexMonadScan
+        AlexToken inp' len action -> do
+            alexSetInput inp'
+            action (ignorePendingBytes inp) len
+
+alexError' :: AlexPosn -> String -> Alex a
+alexError' p = errorWithoutStackTrace
 }

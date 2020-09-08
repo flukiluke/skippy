@@ -211,8 +211,10 @@ parseError ((AlexPn _ row col, t):ts, explist)
         _ -> " but expected one of " ++ (intercalate ", " explist))
 -}
 parseError :: (AlexPosn, Token) -> Alex a
-parseError _ = error "parse error"
+parseError (p, t) = alexError' p ("Unexpected " ++ (show t) ++ " here")
 
+-- As recommended by the Happy manual, this wrapper makes the types of
+-- everything match up.
 lexwrap :: ((AlexPosn, Token) -> Alex a) -> Alex a
-lexwrap = (alexMonadScan >>=)
+lexwrap = (alexMonadScan' >>=)
 }
