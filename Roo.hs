@@ -42,21 +42,18 @@ main
                 Left err
                   -> do putStrLn err
                         exitWith (ExitFailure 2)
-              -- putStrLn . show . (runAlex parse input)
         -- Pretty print the input program; format then suitable for input
         Pprint
           -> do
               let [_, filename] = args
               input <- readFile filename
-              putStrLn "df"
-              -- pprint . parse . alexScanTokens $ input
-        -- Dump Lexer tokens. This option is not in the Roo spec, but
-        -- convenient for debugging.
-        Lex
-          -> do
-              let [_, filename] = args
-              input <- readFile filename
-              putStrLn "d" -- . show . alexScanTokens $ input
+              let output = scan input parse
+              case output of
+                Right ast
+                  -> pprint ast
+                Left err
+                  -> do putStrLn err
+                        exitWith (ExitFailure 2)
 
 checkArgs :: String -> [String] -> IO Task
 checkArgs _ ['-':_]
@@ -67,10 +64,8 @@ checkArgs _ ["-a", filename]
   = return Parse
 checkArgs _ ["-p", filename]
   = return Pprint
-checkArgs _ ["-l", filename]
-  = return Lex
 checkArgs progname _
   = do
-      putStrLn ("Usage: " ++ progname ++ " -[pal] filename")
+      putStrLn ("Usage: " ++ progname ++ " -[pa] filename")
       exitWith (ExitFailure 1)
 
