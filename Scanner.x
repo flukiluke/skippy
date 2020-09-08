@@ -102,7 +102,7 @@ fancyErrorMessage :: AlexPosn -> String -> String -> String
 fancyErrorMessage (AlexPn _ row col) source msg
     = (lineContent source (row - 1)) ++ "\n" ++
         (take (col - 1) (repeat ' ')) ++ "^\n" ++
-        (show row) ++ ":" ++ (show col) ++ ": " ++ msg
+        "Line " ++ (show row) ++ ", column " ++ (show col) ++ ": " ++ msg
         
 -- Alex insists on hardcoding a call from alexMonadScan to alexError with no
 -- way to intercept it, so we give our own alexMonadScan that calls our own
