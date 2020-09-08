@@ -15,7 +15,7 @@
 module Main (main) where
 import System.Environment (getProgName, getArgs)
 import System.Exit (exitWith, ExitCode(..))
-import Scanner (alexScanTokens)
+import Scanner (runAlex)
 import Parser (parse)
 import Pretty (pprint)
 
@@ -35,20 +35,22 @@ main
           -> do
               let [_, filename] = args
               input <- readFile filename
-              putStrLn . show . parse . alexScanTokens $ input
+              putStrLn . show $ runAlex input parse
+              -- putStrLn . show . (runAlex parse input)
         -- Pretty print the input program; format then suitable for input
         Pprint
           -> do
               let [_, filename] = args
               input <- readFile filename
-              pprint . parse . alexScanTokens $ input
+              putStrLn "df"
+              -- pprint . parse . alexScanTokens $ input
         -- Dump Lexer tokens. This option is not in the Roo spec, but
         -- convenient for debugging.
         Lex
           -> do
               let [_, filename] = args
               input <- readFile filename
-              putStrLn . show . alexScanTokens $ input
+              putStrLn "d" -- . show . alexScanTokens $ input
 
 checkArgs :: String -> [String] -> IO Task
 checkArgs _ ['-':_]

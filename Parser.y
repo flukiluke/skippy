@@ -17,9 +17,11 @@ import AST
 
 %name parse
 %tokentype { (AlexPosn, Token) }
+%monad { Alex }
+%lexer { lexwrap } { (_, EOF) }
 %error { parseError }
 -- Requires Happy version 1.19.7 or greater
-%errorhandlertype explist
+-- %errorhandlertype explist
 
 -- Note: the first element of each tuple is Alex position info
 %token
@@ -198,6 +200,7 @@ Expr        : Lvalue                              { Lval $1 }
 -- This function gets called on a parse error. It tries to print a nicely
 -- formatted list of tokens that we expected (this may or may not be useful
 -- to the programmer).
+{-
 parseError :: ([(AlexPosn, Token)], [String]) -> a
 parseError ((AlexPn _ row col, t):ts, explist)
     = errorWithoutStackTrace ("Parse error on line " ++
@@ -206,4 +209,10 @@ parseError ((AlexPn _ row col, t):ts, explist)
         0 -> ""
         1 -> " but expected " ++ (head explist)
         _ -> " but expected one of " ++ (intercalate ", " explist))
+-}
+parseError :: (AlexPosn, Token) -> Alex a
+parseError _ = error "parse error"
+
+lexwrap :: ((AlexPosn, Token) -> Alex a) -> Alex a
+lexwrap = (alexMonadScan >>=)
 }
