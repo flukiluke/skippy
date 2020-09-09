@@ -7,7 +7,9 @@
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
 --
--- This is an Alex lexer for the Roo language.
+-- This is an Alex lexer for the Roo language. It is based on the suggestions
+-- and examples given in the Alex manaul, especially to produce a monad-based
+-- scanner.
 {
 module Scanner where
 
@@ -41,17 +43,8 @@ rules :-
   @ident    { lex_lit Identifier }
 
 {
-{-
-Defined by Alex, here for reference:
-type AlexInput = (AlexPosn, -- current position,
-                  Char, -- previous char
-                  [Byte], -- rest of the bytes for the current char
-                  String) -- current input string
--}
 
-alexEOF :: Alex (AlexPosn, Token)
-alexEOF = return (undefined, EOF)
-
+-- Tokens that we return to the parser
 data Token
     = Identifier String
     | Keyword String
@@ -85,18 +78,35 @@ lex_str (p,_,_,str) len = return (p, StringLit . unpack
         -- strip leading and trailing quotes
         . pack . tail . take (len - 1) $ str)
 
+{-
+Defined by Alex, here for reference:
+type AlexInput = (AlexPosn, -- current position,
+                  Char, -- previous char
+                  [Byte], -- rest of the bytes for the current char
+                  String) -- current input string
+-}
+
+-- Called when alex reaches the end of the input
+alexEOF :: Alex (AlexPosn, Token)
+alexEOF = return (undefined, EOF)
+
 -- Used to hold the original input for error reporting
 data AlexUserState = AlexUserState { original :: String }
 
+-- Alex expects this to be defined, even though we don't have any meaningful
+-- initial state to set.
 alexInitUserState :: AlexUserState
 alexInitUserState = AlexUserState ""
 
+-- Called at start of parse to record original input
 setOriginalInput :: String -> Alex ()
 setOriginalInput = alexSetUserState . AlexUserState
 
+-- Get the text on line linenum from content
 lineContent :: String -> Int -> String
 lineContent content linenum = lines content !! linenum
 
+-- Produce a "nice" error message pointing to the error, inspired by clang/gcc.
 fancyErrorMessage :: AlexPosn -> String -> String -> String
 fancyErrorMessage (AlexPn _ row col) source msg
     = "Line " ++ (show row) ++ " column " ++ (show col) ++ ": error: " ++ msg ++
@@ -123,10 +133,13 @@ alexMonadScan' = do
             alexSetInput inp'
             action (ignorePendingBytes inp) len
 
-scan :: String -> Alex a -> Either String a
-scan input a = runAlex input (setOriginalInput input >> a)
-
+-- Called on error, both by alexMonadScan' and the Happy parser.
 alexError' :: AlexPosn -> String -> Alex a
 alexError' p msg = Alex (\s -> let source = original . alex_ust $ s
                                in Left $ fancyErrorMessage p source msg)
+
+-- Main entry point for scanner.
+scan :: String -> Alex a -> Either String a
+scan input a = runAlex input (setOriginalInput input >> a)
+
 }

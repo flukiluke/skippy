@@ -7,7 +7,8 @@
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
 --
--- This is the main Happy parser for the language.
+-- This is the main Happy parser for the language. It is based on the examples
+-- presented in the Happy manual.
 {
 module Parser where
 import Data.List (intercalate)
