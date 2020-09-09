@@ -159,22 +159,13 @@ whitespace i = concat $ take i $ repeat "    "
 -- Provides precedence values of various operators, equivalent to the
 -- precedence declarations in the Happy parser. Used for adding parentheses
 -- in the right spots.
+-- Note that 8 is considered highest precedence, and a default for anything
+-- we don't recognise.
 precedence :: Expr -> Int
-precedence (BinOpExpr Op_or _ _) = 1
-precedence (BinOpExpr Op_and _ _) = 2
-precedence (PreOpExpr Op_not _) = 3
-precedence (BinOpExpr Op_eq _ _) = 3
-precedence (BinOpExpr Op_neq _ _) = 3
-precedence (BinOpExpr Op_lt _ _) = 3
-precedence (BinOpExpr Op_lteq _ _) = 3
-precedence (BinOpExpr Op_gt _ _) = 3
-precedence (BinOpExpr Op_gteq _ _) = 3
-precedence (BinOpExpr Op_plus _ _) = 4
-precedence (BinOpExpr Op_minus _ _) = 4
-precedence (BinOpExpr Op_mult _ _) = 5
-precedence (BinOpExpr Op_divide _ _) = 5
-precedence (PreOpExpr Op_negate _) = 6
-precedence (Lval _) = 7
-precedence (BoolLit _) = 7
-precedence (IntLit _) = 7
-precedence (StrLit _) = 7
+precedence (BinOpExpr o _ _) = maybe 8 id $ lookup o [
+    (Op_or, 1), (Op_and, 2), (Op_eq, 4), (Op_neq, 4), (Op_lt, 4),
+    (Op_lteq, 4), (Op_gt, 4), (Op_gteq, 4), (Op_plus, 5), (Op_minus, 5),
+    (Op_mult, 6), (Op_divide, 6)]
+precedence (PreOpExpr o _)
+    = maybe 8 id $ lookup o [(Op_not, 3), (Op_negate, 8)]
+precedence _ = 8

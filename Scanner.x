@@ -12,7 +12,6 @@
 module Scanner where
 
 import Data.Text (pack, unpack, replace)
-import Control.Monad (liftM)
 }
 
 %wrapper "monadUserState"
