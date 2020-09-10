@@ -125,12 +125,16 @@ printExpr e@(BinOpExpr op expr1 expr2) = do
            putStr ")"
        else printExpr expr1
     putStr $ " " ++ show op ++ " "
-    if precedence e >= precedence expr2
-       then do
-           putStr "("
-           printExpr expr2
-           putStr ")"
-       else printExpr expr2
+    case expr2 of
+      (PreOpExpr _ _) -> printExpr expr2
+      _ ->
+        if precedence e >= precedence expr2
+           then do
+               putStr "("
+               printExpr expr2
+               putStr ")"
+           else printExpr expr2
+
 printExpr e@(PreOpExpr op expr) = do
     putStr $ show op
     if precedence e > precedence expr
