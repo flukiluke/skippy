@@ -20,8 +20,8 @@ pprint (Program records arrays procedures) = do
     sequence $ fmap printRecord records
     sequence $ fmap printArray arrays
     if null records && null arrays
-       then do return ()
-       else do putStrLn ""
+       then return ()
+       else putStrLn ""
     sequence $ intersperse (putStrLn "") $ fmap printProc procedures
     return ()
 
@@ -36,7 +36,6 @@ printArray :: ArrayDec -> IO()
 printArray (ArrayDec ident typename size)  = do
     putStrLn $ "array[" ++ show size ++ "] " ++ show typename
         ++ " " ++ ident ++ ";"
-    return ()
 
 printProc :: Proc -> IO()
 printProc (Proc ident parameters vardecs stmts) = do
@@ -82,7 +81,7 @@ printStmt indent (If expr stmts1 stmts2) = do
     putStrLn " then"
     sequence $ fmap (printStmt $ indent + 1) stmts1
     if null stmts2
-       then do putStrLn $ whitespace indent ++ "fi"
+       then putStrLn $ whitespace indent ++ "fi"
        else do
            putStrLn $ whitespace indent ++ "else"
            sequence $ fmap (printStmt $ indent + 1) stmts2
