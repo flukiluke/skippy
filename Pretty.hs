@@ -118,7 +118,11 @@ printExpr (IntLit int) = putStr (show int)
 -- Insert parentheses whereever the natural precedence differs from the
 -- actual parse tree.
 printExpr e@(BinOpExpr op expr1 expr2) = do
-    if precedence e > precedence expr1
+    if precedence e > precedence expr1 ||
+        -- If both operators are non-associative and equal precedence, always
+        -- add parentheses because it would be ambiguous otherwise
+        (precedence e == precedence expr1 &&
+            nonassociative e && nonassociative expr1)
        then do
            putStr "("
            printExpr expr1
@@ -126,9 +130,12 @@ printExpr e@(BinOpExpr op expr1 expr2) = do
        else printExpr expr1
     putStr $ " " ++ show op ++ " "
     case expr2 of
+      -- Don't add parentheses in something like "1 = not 2"
       (PreOpExpr _ _) -> printExpr expr2
       _ ->
-        if precedence e >= precedence expr2
+          if precedence e >= precedence expr2
+             -- No need for associativity check here because nothing is
+             -- right associative (so it'll get parentheses anyway).
            then do
                putStr "("
                printExpr expr2
@@ -173,3 +180,14 @@ precedence (BinOpExpr o _ _) = maybe 8 id $ lookup o [
 precedence (PreOpExpr o _)
     = maybe 8 id $ lookup o [(Op_not, 3), (Op_negate, 8)]
 precedence _ = 8
+
+-- It is useful to know whether an operator is associative so we can correctly
+-- parenthesise things that would otherwise be rendered as "a = b = c". Note
+-- that for expressions with mixed non-associative operators like "a > b = c"
+-- we judge it to be not well-formed unless there are parentheses present.
+-- This is consistent with both what the parser will accept and how Haskell
+-- itself treats non-associative custom operators of the same precedence.
+nonassociative :: Expr -> Bool
+nonassociative (BinOpExpr o _ _) = elem o [
+    Op_eq, Op_neq, Op_lt, Op_lteq, Op_gt, Op_gteq]
+nonassociative _ = False

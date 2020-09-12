@@ -8,7 +8,7 @@
 -- full details.
 --
 -- This is an Alex lexer for the Roo language. It is based on the suggestions
--- and examples given in the Alex manaul, especially to produce a monad-based
+-- and examples given in the Alex manual, especially to produce a monad-based
 -- scanner.
 {
 module Scanner where
