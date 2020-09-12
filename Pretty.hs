@@ -22,8 +22,7 @@ pprint (Program records arrays procedures) = do
     if null records && null arrays
        then return ()
        else putStrLn ""
-    sequence $ intersperse (putStrLn "") $ fmap printProc procedures
-    return ()
+    sequence_ $ intersperse (putStrLn "") $ fmap printProc procedures
 
 printRecord :: RecordDec -> IO()
 printRecord (RecordDec ident ((FieldDec id1 t1):fs)) = do
