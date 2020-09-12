@@ -134,14 +134,19 @@ printExpr e@(BinOpExpr op expr1 expr2) = do
       (PreOpExpr _ _) -> printExpr expr2
       _ ->
           if precedence e >= precedence expr2
-             -- No need for associativity check here because nothing is
-             -- right associative (so it'll get parentheses anyway).
+             -- No need for associativity check here because no binary operator
+             -- is right associative (so it'll get parentheses anyway).
            then do
                putStr "("
                printExpr expr2
                putStr ")"
            else printExpr expr2
 
+-- Chains of prefix operators never need any parentheses because
+-- they are inherently right associative
+printExpr e@(PreOpExpr op expr@(PreOpExpr _ _)) = do
+    putStr $ show op
+    printExpr expr
 printExpr e@(PreOpExpr op expr) = do
     putStr $ show op
     if precedence e > precedence expr
