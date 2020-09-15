@@ -46,7 +46,7 @@ main
                 Right ast
                   -> pprint ast
                 Left err
-                  -> do putStrLn err >> exitWith (ExitFailure 2)
+                  -> putStrLn err >> exitWith (ExitFailure 2)
 
 checkArgs :: String -> [String] -> IO Task
 checkArgs _ ['-':_]
