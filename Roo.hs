@@ -29,31 +29,24 @@ main
       progname <- getProgName
       args <- getArgs
       task <- checkArgs progname args
+      let [_, filename] = args
+      input <- readFile filename
+      let output = scan input parse
       case task of
         -- Dump AST with no particular format
         Parse
-          -> do
-              let [_, filename] = args
-              input <- readFile filename
-              let output = scan input parse
-              case output of
+          -> case output of
                 Right ast
                   -> putStrLn (show ast)
                 Left err
-                  -> do putStrLn err
-                        exitWith (ExitFailure 2)
+                  -> putStrLn err >> exitWith (ExitFailure 2)
         -- Pretty print the input program; format then suitable for input
         Pprint
-          -> do
-              let [_, filename] = args
-              input <- readFile filename
-              let output = scan input parse
-              case output of
+          -> case output of
                 Right ast
                   -> pprint ast
                 Left err
-                  -> do putStrLn err
-                        exitWith (ExitFailure 2)
+                  -> do putStrLn err >> exitWith (ExitFailure 2)
 
 checkArgs :: String -> [String] -> IO Task
 checkArgs _ ['-':_]
