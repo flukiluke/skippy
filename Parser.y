@@ -122,6 +122,10 @@ ArrayType   : boolean                                       { BoolType }
             | integer                                       { IntType }
             | id                                            { (AliasType $1) }
 
+-- This production gives strange errors if the input has no procedures.
+-- A better error handling solution might be to accept zero procedures in the
+-- parse then explicitly check later (a check that needs to be done anyway,
+-- since we need to verify the existence of a main() procedure).
 ProcDecs    : ProcDec                                       { [$1] }
             | ProcDecs ProcDec                              { $2 : $1 }
 
