@@ -1,6 +1,6 @@
 -- Skippy, a compiler for the Roo language.
 --
--- Submitted for assignment 1a of COMP90045, 2020
+-- Submitted for assignment 1b of COMP90045, 2020
 -- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
 -- 16 September 2020
 --
