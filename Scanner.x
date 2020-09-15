@@ -86,9 +86,10 @@ type AlexInput = (AlexPosn, -- current position,
                   String) -- current input string
 -}
 
--- Called when alex reaches the end of the input
+-- Called when alex reaches the end of the input.
+-- The -1's signify to error handling code that the position is EOF.
 alexEOF :: Alex (AlexPosn, Token)
-alexEOF = return (undefined, EOF)
+alexEOF = return (AlexPn (-1) (-1) (-1), EOF)
 
 -- Used to hold the original input for error reporting
 data AlexUserState = AlexUserState { original :: String }
@@ -107,7 +108,11 @@ lineContent :: String -> Int -> String
 lineContent content linenum = lines content !! linenum
 
 -- Produce a "nice" error message pointing to the error, inspired by clang/gcc.
+-- Special case to handle end-of-file errors (the -1's are only produced by
+-- alexEOF).
 fancyErrorMessage :: AlexPosn -> String -> String -> String
+fancyErrorMessage (AlexPn (-1) (-1) (-1)) _ msg
+    = "At end of input: error: " ++ msg
 fancyErrorMessage (AlexPn _ row col) source msg
     = "Line " ++ (show row) ++ " column " ++ (show col) ++ ": error: " ++ msg ++
         "\n\n" ++ (lineContent source (row - 1)) ++
