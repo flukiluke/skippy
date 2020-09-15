@@ -22,7 +22,7 @@ $digit      = 0-9
 $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 @alpha      = [a-zA-Z]
 @digits     = $digit+
-@string     = \" ([^\"] | \\\")* \"
+@string     = \" ([^\\\"] | \\.)* \"
 @ident      = @alpha (@alpha | $digit | \_ | \')*
 @comment    = \# [^\n]* \n
 @symops     = "<-" | "<=" | ">=" | "!="
