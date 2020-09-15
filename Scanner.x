@@ -75,6 +75,7 @@ lex_str (p,_,_,str) len = return (p, StringLit . unpack
         -- etc
         . (replace (pack "\\n") (pack "\n"))
         . (replace (pack "\\t") (pack "\t"))
+        . (replace (pack "\\\\") (pack "\\"))
         -- strip leading and trailing quotes
         . pack . tail . take (len - 1) $ str)
 
