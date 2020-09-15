@@ -163,7 +163,6 @@ rooEscape :: String -> String
 rooEscape ('\n':xs) = '\\':'n':(rooEscape xs)
 rooEscape ('\t':xs) = '\\':'t':(rooEscape xs)
 rooEscape ('\"':xs) = '\\':'"':(rooEscape xs)
-rooEscape ('\\':xs) = '\\':'\\':(rooEscape xs)
 rooEscape (x:xs) = x:(rooEscape xs)
 rooEscape x = x
 
