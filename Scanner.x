@@ -18,11 +18,22 @@ import Data.Text (pack, unpack, replace)
 
 %wrapper "monadUserState"
 
+-- We have two varieties of string regex. The first supports the Roo spec as
+-- originally defined, where \\ is not an escape code for a literal backslash.
+-- This means "\\" isn't a valid string though, so the second regex is a
+-- revised version of Roo that existed for about 20 hours on the discussion
+-- board before the lecturer retconned it; this allows \\ to be a literal
+-- backslash.
+-- The first regex was derived from a DFA using the Brzozowski algebratic
+-- method, the second was crafted by hand.
+$stdchars   = . # [\t\\\"]
+@string     = \" ($stdchars* \\+ ($stdchars | \"))* $stdchars* \"
+-- @string  = \" ($stdchars | \\.)* \"
+-- " This line is just to fix my syntax highlighter
 $digit      = 0-9
 $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
 @alpha      = [a-zA-Z]
 @digits     = $digit+
-@string     = \" ([^\\\"] | \\.)* \"
 @ident      = @alpha (@alpha | $digit | \_ | \')*
 @comment    = \# [^\n]* \n
 @symops     = "<-" | "<=" | ">=" | "!="
@@ -70,12 +81,10 @@ lex_bool b (p,_,_,_) _ = return (p, BooleanLit b)
 -- Make quoted string literal
 lex_str :: AlexInput -> Int -> Alex (AlexPosn, Token)
 lex_str (p,_,_,str) len = return (p, StringLit . unpack
-        -- replace escaped quote (\") with literal quote (")
+        -- Replace escaped quote (\") with literal quote (").
+        -- Not sure if this is needed with Oz, we'll find out later.
         . (replace (pack "\\\"") (pack "\""))
-        -- etc
-        . (replace (pack "\\n") (pack "\n"))
-        . (replace (pack "\\t") (pack "\t"))
-        -- strip leading and trailing quotes
+        -- Strip leading and trailing quotes.
         . pack . tail . take (len - 1) $ str)
 
 {-
