@@ -129,8 +129,10 @@ ProcDec     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'
                 { Proc $2 (reverse $4) (reverse $6) (reverse $8) }
 
 Parameters  : {- empty -}                                   { [] }
-            | Parameter                                     { [$1] }
-            | Parameters ',' Parameter                      { $3 : $1 }
+            | ParamList                                     { $1 }
+
+ParamList   : Parameter                                     { [$1] }
+            | ParamList ',' Parameter                       { $3 : $1 }
 
 Parameter   : id id
                 { RefParam $2 (AliasType $1) }
