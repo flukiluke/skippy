@@ -18,9 +18,10 @@ import System.Exit (exitWith, ExitCode(..))
 import Scanner (scan)
 import Parser (parse)
 import Pretty (pprint)
+import CodeGen (generateMachineCode)
 
 data Task
-    = Parse | Pprint | Lex
+    = Parse | Pprint | Lex | Compile
     deriving (Eq, Show)
 
 main :: IO ()
@@ -29,7 +30,7 @@ main
       progname <- getProgName
       args <- getArgs
       task <- checkArgs progname args
-      let [_, filename] = args
+      let filename = last args
       input <- readFile filename
       let output = scan input parse
       case task of
@@ -47,6 +48,12 @@ main
                   -> pprint ast
                 Left err
                   -> putStrLn err >> exitWith (ExitFailure 2)
+        Compile
+          -> case output of
+               Right ast
+                  -> generateMachineCode ast
+               Left err
+                  -> putStrLn err >> exitWith (ExitFailure 2)
 
 checkArgs :: String -> [String] -> IO Task
 checkArgs _ ['-':_]
@@ -57,8 +64,9 @@ checkArgs _ ["-a", filename]
   = return Parse
 checkArgs _ ["-p", filename]
   = return Pprint
+checkArgs _ [filename]
+  = return Compile
 checkArgs progname _
   = do
       putStrLn ("Usage: " ++ progname ++ " -[pa] filename")
       exitWith (ExitFailure 1)
-
