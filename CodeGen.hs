@@ -16,8 +16,15 @@ generateMachineCode prog@(Program _ _ [(Proc _ _ _ stmts)]) = do
     putStrLn "call proc_main"
     putStrLn "halt"
     symbolTable <- return $ getSymbolTable prog
+    (ProcSymbol table stack_size) <- return $ symbolTable Map.! "main"
     putStrLn "proc_main:"
-    mapM_ (generateStmtCode symbolTable) stmts
+    putStrLn $ "push_stack_frame " ++ show stack_size
+    -- initialise variables
+    putStrLn "int_const r0, 0"
+    sequence $ map (\x -> putStrLn $ "store " ++ show x ++ ", r0") 
+        $ take stack_size [0..]
+    mapM_ (generateStmtCode table) stmts
+    putStrLn $ "pop_stack_frame " ++ show stack_size
     putStrLn "return"
 
 -- placeholder, idk if this will become part of the symbol table?
@@ -29,12 +36,10 @@ getExprType _ = IntType
 
 -- expression, table, registers available for use
 generateExprCode :: Expr -> SymbolTable -> [Int] -> IO()
-generateExprCode (Lval lval) table (val_r:tmp:_)= do
+generateExprCode (Lval (LId ident)) table (val_r:tmp:_)= do
     putStrLn $ "load_address r" ++ show tmp ++ ", " ++ show slot
     putStrLn $ "load_indirect r" ++ show val_r ++ ", r" ++ show tmp
-        where slot = case Map.lookup "j" table of
-                       Just x -> location x
-                       _      -> 0
+        where (VarSymbol _ slot) = table Map.! ident
 
 generateExprCode (BoolLit b) _ (register:_) = do
     putStrLn $ "int_const r" ++ (show register) ++ ", " ++ bool_lit b
@@ -75,7 +80,7 @@ initialRegisters = take 1024 [0..]
 
 generateStmtCode :: SymbolTable -> Stmt -> IO()
 
-generateStmtCode table (Assign lval expr) = do
+generateStmtCode table (Assign (LId ident) expr) = do
     generateExprCode expr table (val_r:registers)
     -- get address
     putStrLn $ "load_address r" ++ addr_r ++ ", " ++ show slot
@@ -83,16 +88,15 @@ generateStmtCode table (Assign lval expr) = do
         where val_r = head initialRegisters
               addr_r = show . head . tail $ initialRegisters
               registers = tail . tail $ initialRegisters
-              slot = case Map.lookup "j" table of
-                         Just x -> location x
-                         _      -> 0
+              (VarSymbol _ slot) = table Map.! ident
     
 
-generateStmtCode _ (Read lval) = do
+generateStmtCode table (Read lval@(LId ident)) = do
     putStrLn $ "call_builtin " ++ readBuiltin
-    putStrLn $ "load_address r1, " ++ "4" -- 4 is the slot of the lval
+    putStrLn $ "load_address r1, " ++ show slot
     putStrLn "store_indirect r1, r0"
-        where readBuiltin =  case (getExprType (Lval lval)) of
+        where (VarSymbol _ slot) = table Map.! ident
+              readBuiltin =  case (getExprType (Lval lval)) of
                                 BoolType -> "read_bool"
                                 IntType  -> "read_int"
                                 _ -> "error"
