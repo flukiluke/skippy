@@ -36,9 +36,8 @@ getExprType _ = IntType
 
 -- expression, table, registers available for use
 generateExprCode :: Expr -> SymbolTable -> [Int] -> IO()
-generateExprCode (Lval (LId ident)) table (val_r:tmp:_)= do
-    putStrLn $ "load_address r" ++ show tmp ++ ", " ++ show slot
-    putStrLn $ "load_indirect r" ++ show val_r ++ ", r" ++ show tmp
+generateExprCode (Lval (LId ident)) table (val_r:_)= do
+    putStrLn $ "load r" ++ show val_r ++ ", " ++ show slot
         where (VarSymbol _ slot) = table Map.! ident
 
 generateExprCode (BoolLit b) _ (register:_) = do
@@ -114,8 +113,7 @@ generateStmtCode table (Write expr) = do
 generateStmtCode table (WriteLn expr) = do
     generateExprCode expr table initialRegisters
     putStrLn $ "call_builtin " ++ printBuiltin
-    putStrLn $ "string_const r0, \"\\n\""
-    putStrLn $ "call_builtin print_string"
+    putStrLn $ "call_builtin print_newline"
         where printBuiltin =  case (getExprType expr) of
                                 BoolType -> "print_bool"
                                 IntType  -> "print_int"
