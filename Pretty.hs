@@ -74,7 +74,7 @@ printStmt indent (Call ident exprs) = do
     sequence $ intersperse (putStr ", ") $ fmap printExpr exprs
     putStrLn ");"
 
-printStmt indent (If expr stmts1 stmts2) = do
+printStmt indent (If expr stmts1 stmts2 _) = do
     putStr $ whitespace indent ++ "if "
     printExpr expr
     putStrLn " then"
@@ -86,7 +86,7 @@ printStmt indent (If expr stmts1 stmts2) = do
            sequence $ fmap (printStmt $ indent + 1) stmts2
            putStrLn $ whitespace indent ++ "fi"
 
-printStmt indent (While expr stmts) = do
+printStmt indent (While expr stmts _) = do
     putStr $ whitespace indent ++ "while "
     printExpr expr
     putStrLn " do"

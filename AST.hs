@@ -58,14 +58,16 @@ instance Show VarDec where
       = (show typename) ++ " " ++ (intercalate ", " idents)
 
 data Stmt 
-    = Assign LValue Expr     -- Assign Expr to LValue
-    | Read LValue            -- Read number input LValue
-    | Write Expr             -- Write expr to output
-    | WriteLn Expr           -- Write expr to output, with new line
-    | Call Ident [Expr]      -- Call procedure Ident with parameters [Expr]
-    | If Expr [Stmt] [Stmt]  -- Execute first [Stmt] if Expr is true,
-                             -- second [Expr] otherwise
-    | While Expr [Stmt]      -- Execute [Stmt] while Expr is true
+    = Assign LValue Expr            -- Assign Expr to LValue
+    | Read LValue                   -- Read number input LValue
+    | Write Expr                    -- Write expr to output
+    | WriteLn Expr                  -- Write expr to output, with new line
+    | Call Ident [Expr]             -- Call procedure Ident with parameters [Expr]
+    | If Expr [Stmt] [Stmt] String  -- Execute first [Stmt] if Expr is true,
+                                    -- second [Expr] otherwise
+                                    -- string is an identifier?
+    | While Expr [Stmt] String      -- Execute [Stmt] while Expr is true
+                                    -- string is an identifier?
     deriving (Show, Eq)
 
 data TypeName

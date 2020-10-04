@@ -23,6 +23,7 @@ generateMachineCode prog@(Program _ _ [(Proc _ _ _ stmts)]) = do
     putStrLn "int_const r0, 0"
     sequence $ map (\x -> putStrLn $ "store " ++ show x ++ ", r0") 
         $ take stack_size [0..]
+    labels <- return [0..]
     mapM_ (generateStmtCode table) stmts
     putStrLn $ "pop_stack_frame " ++ show stack_size
     putStrLn "return"
@@ -121,3 +122,25 @@ generateStmtCode table (WriteLn expr) = do
 
 generateStmtCode table (Call ident expr) = do
     return ()
+
+generateStmtCode table (If expr stmts else_stmts label) = do
+    generateExprCode expr table initialRegisters
+    putStrLn $ "branch_on_false r0, label_" ++ label ++ "_0"
+    mapM_ (generateStmtCode table) stmts
+    putStrLn $ "branch_uncond label_" ++ label ++ "_1"
+    putStrLn $ "label_" ++ label ++ "_0:"
+    mapM_ (generateStmtCode table) else_stmts
+    putStrLn $ "label_" ++ label ++ "_1:"
+
+
+generateStmtCode table (While expr stmts label) = do
+    putStrLn $ "label_" ++ label ++ "_0:"
+    generateExprCode expr table initialRegisters
+    putStrLn $ "branch_on_false r0, label_" ++ label ++ "_1"
+    mapM_ (generateStmtCode table) stmts
+    putStrLn $ "branch_uncond label_" ++ label ++ "_0"
+    putStrLn $ "label_" ++ label ++ "_1:"
+
+placeLabel :: IO()
+placeLabel = do
+    putStrLn $ "label_" ++ show 0
