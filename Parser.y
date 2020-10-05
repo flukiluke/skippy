@@ -173,58 +173,142 @@ Statement   : Lvalue assign Expr ';'              { $$ = Assign $1 $3 }
                 { $$ = If $2 (reverse $4) $5 }
             | while Expr do Statements od         { $$ = While $2 (reverse $4) }
 
-ElseClause  : {- empty -}                         { $$ = [] }
-            | else Statements                     { $$ = (reverse $2) }
+ElseClause  : {- empty -}                       { $$ = [] }
+            | else Statements                   { $$ = (reverse $2) }
 
-Args        : {- empty -}                         { $$ = [] }
-            | Expr                                { $$ = [$1] }
-            | Args ',' Expr                       { $$ = $3 : $1 }
+Args        : {- empty -}                       { $$ = [] }
+            | Expr                              { $$ = [$1] }
+            | Args ',' Expr                     { $$ = $3 : $1 }
 
-Lvalue      : id                                  { $$ = LId $1 }
-            | id '.' id                           { $$ = LField $1 $3 }
-            | id '[' Expr ']'                     { $$ = LArray $1 $3 }
-            | id '[' Expr ']' '.' id              { $$ = LArrayField $1 $3 $6 }
+Lvalue      : id                                { $$ = LId $1 }
+            | id '.' id                         { $$ = LField $1 $3 }
+            | id '[' Expr ']'                   { $$ = LArray $1 $3 }
+            | id '[' Expr ']' '.' id            { $$ = LArrayField $1 $3 $6 }
 
-Expr        : Lvalue                              { $$ = Lval $1
-                                                  ; $$.rooType = $1.rooType
-                                                  }
-            | boolean_lit                         { $$ = BoolLit $ unBooleanLit $1
-                                                  ; $$.rooType = RooBool
-                                                  ; $$.posn = fst $1
-                                                  }
-            | integer_lit                         { $$ = IntLit $ unIntegerLit $1
-                                                  ; $$.rooType = RooInt
-                                                  ; $$.posn = fst $1
-                                                  }
-            | string_lit                          { $$ = StrLit $ unStringLit $1
-                                                  ; $$.rooType = RooStr
-                                                  ; $$.posn = fst $1
-                                                  }
-            | '(' Expr ')'                        { $$ = $2
-                                                  ; $$.rooType = $2.rooType
-                                                  }
-            | Expr or Expr                        { $$ = BinOpExpr Op_or $1 $3
-                                                  ; where enforceType $1.rooType RooBool $1.posn
-                                                  ; where enforceType $3.rooType RooBool $3.posn
-                                                  }
-            | Expr and Expr                       { $$ = BinOpExpr Op_and $1 $3
-                                                  ; where enforceType $3.rooType RooBool $3.posn
-                                                  ; where enforceType $1.rooType RooBool $1.posn
-                                                  }
-            | not Expr                            { $$ = PreOpExpr Op_not $2
-                                                  ; where enforceType $2.rooType RooBool $2.posn
-                                                  }
-            | Expr '=' Expr                       { $$ = BinOpExpr Op_eq $1 $3 }
-            | Expr '!=' Expr                      { $$ = BinOpExpr Op_neq $1 $3 }
-            | Expr '<' Expr                       { $$ = BinOpExpr Op_lt $1 $3 }
-            | Expr '<=' Expr                      { $$ = BinOpExpr Op_lteq $1 $3 }
-            | Expr '>' Expr                       { $$ = BinOpExpr Op_gt $1 $3 }
-            | Expr '>=' Expr                      { $$ = BinOpExpr Op_gteq $1 $3 }
-            | Expr '+' Expr                       { $$ = BinOpExpr Op_plus $1 $3 }
-            | Expr '-' Expr                       { $$ = BinOpExpr Op_minus $1 $3 }
-            | Expr '*' Expr                       { $$ = BinOpExpr Op_mult $1 $3 }
-            | Expr '/' Expr                       { $$ = BinOpExpr Op_divide $1 $3 }
-            | '-' Expr %prec negate               { $$ = PreOpExpr Op_negate $2 }
+Expr        : Lvalue                            { $$ = Lval $1
+                                                ; $$.rooType = $1.rooType
+                                                ; $$.posn = $1.posn
+                                                }
+            | boolean_lit                       { $$ = BoolLit $ unBooleanLit $1
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $1
+                                                }
+            | integer_lit                       { $$ = IntLit $ unIntegerLit $1
+                                                ; $$.rooType = RooInt
+                                                ; $$.posn = fst $1
+                                                }
+            | string_lit                        { $$ = StrLit $ unStringLit $1
+                                                ; $$.rooType = RooStr
+                                                ; $$.posn = fst $1
+                                                }
+            | '(' Expr ')'                      { $$ = $2
+                                                ; $$.rooType = $2.rooType
+                                                ; $$.posn = fst $1
+                                                }
+            | Expr or Expr                      { $$ = BinOpExpr Op_or $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool]]
+                                                                    $$.posn
+                                                }
+            | Expr and Expr                     { $$ = BinOpExpr Op_and $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool]]
+                                                                    $$.posn
+                                                }
+            | not Expr                          { $$ = PreOpExpr Op_not $2
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $1
+                                                ; where enforceType [$2.rooType]
+                                                                    [[RooBool]]
+                                                                    $$.posn
+                                                }
+            | Expr '=' Expr                     { $$ = BinOpExpr Op_eq $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool],
+                                                                     [RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '!=' Expr                    { $$ = BinOpExpr Op_neq $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool],
+                                                                     [RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '<' Expr                     { $$ = BinOpExpr Op_lt $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool],
+                                                                     [RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '<=' Expr                    { $$ = BinOpExpr Op_lteq $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool],
+                                                                     [RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '>' Expr                     { $$ = BinOpExpr Op_gt $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool],
+                                                                     [RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '>=' Expr                    { $$ = BinOpExpr Op_gteq $1 $3
+                                                ; $$.rooType = RooBool
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooBool, RooBool],
+                                                                     [RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '+' Expr                     { $$ = BinOpExpr Op_plus $1 $3
+                                                ; $$.rooType = RooInt
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '-' Expr                     { $$ = BinOpExpr Op_minus $1 $3
+                                                ; $$.rooType = RooInt
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '*' Expr                     { $$ = BinOpExpr Op_mult $1 $3
+                                                ; $$.rooType = RooInt
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | Expr '/' Expr                     { $$ = BinOpExpr Op_divide $1 $3
+                                                ; $$.rooType = RooInt
+                                                ; $$.posn = fst $2
+                                                ; where enforceType [$1.rooType, $3.rooType]
+                                                                    [[RooInt, RooInt]]
+                                                                    $$.posn
+                                                }
+            | '-' Expr %prec negate             { $$ = PreOpExpr Op_negate $2
+                                                ; $$.rooType = RooInt
+                                                ; $$.posn = fst $1
+                                                ; where enforceType [$2.rooType]
+                                                                    [[RooInt]]
+                                                                    $$.posn
+                                                }
 
 {
 -- Prefix the names with Roo otherwise it gets very confusing to read
@@ -233,13 +317,21 @@ data RooExprType = RooInt
                  | RooStr
                  | RooArray String
                  | RooRecord String
-    deriving (Eq, Show)
+    deriving (Eq)
+instance Show RooExprType where
+    show RooInt = "integer"
+    show RooBool = "boolean"
+    show RooStr = "string"
+    show (RooArray s) = "array " ++ s
+    show (RooRecord s) = "record " ++ s
 
-enforceType :: RooExprType -> RooExprType -> AlexPosn -> Alex ()
-enforceType actualType expectedType p
-    | actualType == expectedType = pure ()
-    | otherwise = alexError' p $ "Expected type " ++ (show expectedType)
-                                    ++ " but got type " ++ (show actualType)
+enforceType :: [RooExprType] -> [[RooExprType]] -> AlexPosn -> Alex ()
+enforceType actual expected p
+    | actual `elem` expected = pure ()
+    | length actual == 1 = alexError' p $ "Encountered an unexpected "
+        ++ (show $ head actual) ++ ". Expected one of " ++ (show expected)
+    | otherwise = alexError' p $ "Arguments were of type " ++ (show actual)
+                                    ++ " but expected " ++ (intercalate " or " $ map show expected)
 
 -- This function gets called on a parse error. It tries to generate a list of
 -- tokens that we expected (this may or may not be useful to the programmer).
