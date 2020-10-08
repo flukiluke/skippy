@@ -15,27 +15,23 @@ data Symbol
     | VarSymbol TypeName Bool Bool Int -- is reference, is parameter, location
     | FieldSymbol TypeName Int
     | TypeSymbol SymbolTable
+    deriving Show
 
-data SymbolTable = SymbolTable (Map.Map String Symbol) (Maybe SymbolTable)
+type SymbolTable = Map.Map String Symbol
 
 findSymbol :: SymbolTable -> String -> Symbol
-findSymbol (SymbolTable table (Just parent)) ident = symbol
-    -- check the parent if the key isn't in this table
-    where symbol = Map.findWithDefault (findSymbol parent ident) ident table
-
-findSymbol (SymbolTable table Nothing) ident = table Map.! ident
+findSymbol table ident = table Map.! ident
 
 getSymbolTable :: Program -> SymbolTable
 getSymbolTable (Program rs as ps) = symtable
-    where symtable = SymbolTable (Map.fromList $ concat [proc_syms, record_syms])
-              Nothing
+    where symtable = Map.fromList $ concat [proc_syms, record_syms]
           proc_syms = map (getProcSym symtable) ps
           record_syms = map getTypeSym rs
           -- array_syms = map getTypeSym rs
 
 getProcSym :: SymbolTable -> Proc -> (String, Symbol)
 getProcSym parent (Proc ident ps vs _) = (ident, ProcSymbol table frame_size)
-    where table = SymbolTable (Map.fromList $ zipFunction vars [0..]) (Just parent)
+    where table = Map.fromList $ zipFunction vars [0..]
           vars = (map getParamSyms ps) ++ (concat $ map getVarSyms vs)
           frame_size = length ps + length vs
 
@@ -61,4 +57,4 @@ getFieldSym (FieldDec ident typename) = (ident, FieldSymbol typename 0)
 
 getTypeSym :: RecordDec -> (String, Symbol)
 getTypeSym (RecordDec ident fs) = (ident, TypeSymbol table)
-    where table = SymbolTable (Map.fromList $ map getFieldSym fs) Nothing
+    where table = Map.fromList $ map getFieldSym fs
