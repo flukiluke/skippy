@@ -12,37 +12,53 @@ data Symbol
     = ProcSymbol
         SymbolTable -- variables
         Int -- stack frame size
-    | VarSymbol TypeName Int -- location
+    | VarSymbol TypeName Bool Bool Int -- is reference, is parameter, location
     | FieldSymbol TypeName Int
     | TypeSymbol SymbolTable
 
-type SymbolTable = Map.Map String Symbol
+data SymbolTable = SymbolTable (Map.Map String Symbol) (Maybe SymbolTable)
+
+findSymbol :: SymbolTable -> String -> Symbol
+findSymbol (SymbolTable table (Just parent)) ident = symbol
+    -- check the parent if the key isn't in this table
+    where symbol = Map.findWithDefault (findSymbol parent ident) ident table
+
+findSymbol (SymbolTable table Nothing) ident = table Map.! ident
 
 getSymbolTable :: Program -> SymbolTable
 getSymbolTable (Program rs as ps) = symtable
-    where symtable = Map.fromList $ concat [proc_syms, record_syms]
-          proc_syms = map getProcSym ps
+    where symtable = SymbolTable (Map.fromList $ concat [proc_syms, record_syms])
+              Nothing
+          proc_syms = map (getProcSym symtable) ps
           record_syms = map getTypeSym rs
           -- array_syms = map getTypeSym rs
 
-getProcSym :: Proc -> (String, Symbol)
-getProcSym (Proc ident _ vs _) = (ident, ProcSymbol table frame_size)
-    where table = Map.fromList . concat $ zipFunction (map getVarSyms vs) [0..]
-          frame_size = length vs
+getProcSym :: SymbolTable -> Proc -> (String, Symbol)
+getProcSym parent (Proc ident ps vs _) = (ident, ProcSymbol table frame_size)
+    where table = SymbolTable (Map.fromList $ zipFunction vars [0..]) (Just parent)
+          vars = (map getParamSyms ps) ++ (concat $ map getVarSyms vs)
+          frame_size = length ps + length vs
 
 zipFunction :: [(a -> b)] -> [a] -> [b]
 zipFunction (f:fs) (a:as) = (f a : zipFunction fs as)
 zipFunction [] _ = []
 zipFunction _ [] = []
 
-getVarSyms :: VarDec -> Int -> [(String, Symbol)]
-getVarSyms (VarDec idents typename) slot = map getVarSym idents
-    where loc = 0
-          getVarSym = (\x -> (x, VarSymbol typename slot))
+getVarSyms :: VarDec -> [Int -> (String, Symbol)]
+getVarSyms (VarDec idents typename) = map f idents
+    where f x = getVarSym x typename False False
+
+getVarSym :: String -> TypeName -> Bool -> Bool -> Int -> (String, Symbol)
+getVarSym ident typename is_ref is_param slot
+  = (ident, VarSymbol typename is_ref is_param slot)
+
+getParamSyms :: Parameter -> Int -> (String, Symbol)
+getParamSyms (RefParam ident typename) = getVarSym ident typename True True
+getParamSyms (ValParam ident typename) = getVarSym ident typename False True
 
 getFieldSym :: FieldDec -> (String, Symbol)
 getFieldSym (FieldDec ident typename) = (ident, FieldSymbol typename 0)
 
 getTypeSym :: RecordDec -> (String, Symbol)
 getTypeSym (RecordDec ident fs) = (ident, TypeSymbol table)
-    where table = Map.fromList $ map getFieldSym fs
+    where table = SymbolTable (Map.fromList $ map getFieldSym fs) Nothing
