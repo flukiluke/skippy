@@ -2,6 +2,10 @@
 --
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
+--
+-- This module builds symbol tables for the entire program, and checks
+-- that it is semantically valid. Later stages can assume the programs
+-- are well-formed.
 
 module StaticVerify where
 
