@@ -10,7 +10,7 @@
 # Basic makefile. Needs ghc, alex and happy installed.
 
 Roo: Roo.hs Scanner.hs Parser.hs Pretty.hs AST.hs SymbolTable.hs CodeGen.hs
-	ghc Roo.hs
+	ghc Roo.hs -prof -fprof-auto
 
 Scanner.hs: Scanner.x
 	alex Scanner.x

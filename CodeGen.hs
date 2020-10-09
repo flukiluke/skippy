@@ -186,15 +186,16 @@ generateStmtCode global_table table (Call ident exprs) =
     -- prepare arguments to be passed
     (concatMap prepareParam args) ++ [OzCall ident]
     where (ProcSymbol arg_map _) = findSymbol global_table ident
-          args = zip (zip [0.. numParams] exprs) [x
-              | (_, x@(VarSymbol _ _ is_param _)) <- Map.toList arg_map, is_param]
-          prepareParam ((r, Lval (LId lval)), (VarSymbol _ True _ slot)) = do
-            -- is a ref
-            (VarSymbol _ _ _ slot) <- return $ findSymbol table lval
-            return $ OzLoadAddress r slot
-          prepareParam ((r, expr), (VarSymbol _ False _ slot)) =
+          args = [x | (_, x@(VarSymbol _ _ pos _)) <- Map.toList arg_map, pos /= -1]
+          prepareParam (VarSymbol _ True _ param_slot) = do
+            -- passed in as a ref
+            -- is the lvalue in the current context also a ref?
+            (Lval (LId lval)) <- return $ exprs !! param_slot
+            (VarSymbol _ already_ref _ slot) <- return $ findSymbol table lval
+            return $ if already_ref then OzLoad param_slot slot else OzLoadAddress param_slot slot
+          prepareParam x@(VarSymbol _ _ r slot) = do
               -- isn't a ref
-              generateExprCode expr table $ r:spareRegisters
+              generateExprCode (exprs !! r) table $ r:spareRegisters
           spareRegisters = drop numParams initialRegisters
           numParams = length exprs
 
