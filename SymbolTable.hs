@@ -14,8 +14,9 @@ data Symbol
         Int -- stack frame size
     | VarSymbol TypeName Bool Int Int
     -- is reference, parameter position (-1 for variable), location
+    | ArraySymbol TypeName Int
     | FieldSymbol TypeName Int
-    | TypeSymbol SymbolTable
+    | RecordSymbol Int SymbolTable -- size, parameters
     deriving Show
 
 type SymbolTable = Map.Map String Symbol
@@ -25,21 +26,33 @@ findSymbol table ident = table Map.! ident
 
 getSymbolTable :: Program -> SymbolTable
 getSymbolTable (Program rs as ps) = symtable
-    where symtable = Map.fromList $ concat [proc_syms, record_syms]
+    where symtable = Map.fromList $ concat [proc_syms, record_syms, array_syms]
           proc_syms = map (getProcSym symtable) ps
-          record_syms = map getTypeSym rs
-          -- array_syms = map getTypeSym rs
+          record_syms = map getRecordSym rs
+          array_syms = map getArraySym as
 
 getProcSym :: SymbolTable -> Proc -> (String, Symbol)
 getProcSym parent (Proc ident ps vs _) = (ident, ProcSymbol table frame_size)
-    where table = Map.fromList $ zipFunction vars [0..]
+    where table = Map.fromList $ vars'
           vars = (zipWith getParamSyms ps [0..]) ++ (concat $ map getVarSyms vs)
-          frame_size = length ps + length vs
+          vars' = assignSlots parent table 0 vars
+          frame_size = (sum $ map (\(ident, _) -> getVarSize parent table ident) vars')
 
-zipFunction :: [(a -> b)] -> [a] -> [b]
-zipFunction (f:fs) (a:as) = (f a : zipFunction fs as)
-zipFunction [] _ = []
-zipFunction _ [] = []
+assignSlots :: SymbolTable -> SymbolTable -> Int -> [Int -> (String, Symbol)] -> [(String, Symbol)]
+assignSlots _ _ _ [] = []
+assignSlots parent table start (v:vs) = v':vs'
+    where v'@(ident, _) = v start
+          vs' = assignSlots parent table next vs
+          next = start + (getVarSize parent table ident)
+
+getVarSize :: SymbolTable -> SymbolTable -> String -> Int
+getVarSize parent table ident = getTypeSize parent typename
+    where (VarSymbol typename _ _ _) = findSymbol table ident
+
+getTypeSize :: SymbolTable -> TypeName -> Int
+getTypeSize table (AliasType ident) = size
+    where (ArraySymbol _ size) = findSymbol table ident
+getTypeSize _ _ = 1
 
 getVarSyms :: VarDec -> [Int -> (String, Symbol)]
 getVarSyms (VarDec idents typename) = map f idents
@@ -56,6 +69,9 @@ getParamSyms (ValParam ident typename) pos = getVarSym ident typename False pos
 getFieldSym :: FieldDec -> (String, Symbol)
 getFieldSym (FieldDec ident typename) = (ident, FieldSymbol typename 0)
 
-getTypeSym :: RecordDec -> (String, Symbol)
-getTypeSym (RecordDec ident fs) = (ident, TypeSymbol table)
+getRecordSym :: RecordDec -> (String, Symbol)
+getRecordSym (RecordDec ident fs) = (ident, RecordSymbol 0 table)
     where table = Map.fromList $ map getFieldSym fs
+
+getArraySym :: ArrayDec -> (String, Symbol)
+getArraySym (ArrayDec ident typename size) = (ident, ArraySymbol typename $ fromInteger size)

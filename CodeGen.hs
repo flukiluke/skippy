@@ -31,6 +31,7 @@ data OzInstruction
     | OzLoadAddress Int Int
     | OzBranchOnFalse Int String
     | OzBranchUncond String
+    | OzAddOffset Int Int Int
 
 instance Show OzInstruction where
     show (OzCall p) = "call " ++ p
@@ -79,6 +80,8 @@ instance Show OzInstruction where
     show (OzBranchOnFalse cond label) = "branch_on_false r" ++ show cond
         ++ ", " ++ label
     show (OzBranchUncond label) = "branch_uncond " ++ label
+    show (OzAddOffset target left right) = "add_offset r" ++ show target
+        ++ ", r" ++ show left ++ ", r" ++ show right
 
 generateMachineCode :: Program -> [OzInstruction]
 generateMachineCode prog@(Program _ _ procs) =
@@ -115,14 +118,24 @@ getExprType (IntLit _) = IntType
 getExprType (StrLit _) = AliasType ""
 getExprType _ = IntType
 
+getLvalAddress :: LValue -> SymbolTable -> [Int] -> [OzInstruction]
+getLvalAddress (LId ident) table (r:_) =
+    [load_instr r slot]
+    where (VarSymbol _ is_ref _ slot) = findSymbol table ident
+          load_instr = if is_ref then OzLoad else OzLoadAddress
+
+getLvalAddress (LArray ident expr) table (addr_r:offset_r:rs) =
+    [load_instr addr_r slot]
+    ++ generateExprCode expr table (offset_r:rs)
+    ++ [OzAddOffset addr_r addr_r offset_r]
+    where (VarSymbol _ is_ref _ slot) = findSymbol table ident
+          load_instr = if is_ref then OzLoad else OzLoadAddress
+
 -- expression, table, registers available for use
 generateExprCode :: Expr -> SymbolTable -> [Int] -> [OzInstruction]
-generateExprCode (Lval (LId ident)) table (val_r:_) =
-    if is_ref then do
-              [ OzLoad val_r slot, OzLoadIndirect val_r val_r ]
-    else 
-        [OzLoad val_r slot]
-    where (VarSymbol _ is_ref _ slot) = findSymbol table ident
+generateExprCode (Lval lval) table rs@(val_r:_) =
+    getLvalAddress lval table rs
+    ++ [OzLoadIndirect val_r val_r]
 
 generateExprCode (BoolLit b) _ (register:_) = [OzBoolConst register b]
 generateExprCode (IntLit int) _ (register:_) = [OzIntConst register int]
@@ -140,18 +153,12 @@ initialRegisters :: [Int]
 initialRegisters = take 1024 [0..]
 
 generateStmtCode :: SymbolTable -> SymbolTable -> Stmt -> [OzInstruction]
-
-generateStmtCode _ table (Assign (LId ident) expr) =
-    generateExprCode expr table (val_r:registers)
+generateStmtCode parent table (Assign lval expr) =
+    generateExprCode expr table (val_r:rs)
     -- get address
-    ++ if is_ref then do
-                 [OzLoad addr_r slot, OzStoreIndirect addr_r val_r]
-    else
-        [OzStore slot val_r]
-    where val_r = head initialRegisters
-          addr_r = head . tail $ initialRegisters
-          registers = tail . tail $ initialRegisters
-          (VarSymbol _ is_ref _ slot) = findSymbol table ident
+    ++ getLvalAddress lval table (addr_r:rs)
+    ++ [OzStoreIndirect addr_r val_r]
+    where (val_r:addr_r:rs) = initialRegisters
     
 
 generateStmtCode _ table (Read lval@(LId ident)) =
