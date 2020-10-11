@@ -18,6 +18,7 @@ import System.Exit (exitWith, ExitCode(..))
 import Scanner (scan)
 import Parser (parse)
 import Pretty (pprint)
+import StaticVerify
 import CodeGen (generateMachineCode)
 
 data Task
@@ -51,7 +52,7 @@ main
         Compile
           -> case output of
                Right ast
-                  -> generateMachineCode ast
+                  -> putStrLn . show . symtab $ ast
                Left err
                   -> putStrLn err >> exitWith (ExitFailure 2)
 

@@ -9,61 +9,109 @@
 
 module StaticVerify where
 
+import Control.Monad.State
 import qualified Data.Map.Strict as Map
-import AST
+import qualified AST
 
-data GlobalSymTab = GlobalSymTab {
-                            typeAliases :: Map.Map String Datatype,
-                            procs :: Map.Map String Procedure }
+data SymbolTable = SymbolTable {
+                    typeAliases :: Map.Map String RooType,
+                    procedures :: Map.Map String Procedure }
+                    deriving (Eq, Show)
 
 data Procedure = Procedure {
                     procSymTab :: LocalSymTab,
                     procStackSize :: Int }
+                    deriving (Eq, Show)
 
 data LocalSymTab = LocalSymTab (Map.Map String Variable)
+    deriving (Eq, Show)
 
-data Datatype
+data RooType
     = IntType
     | BoolType
     | StringType
-    | ArrayType Datatype Integer 
+    | ArrayType RooType Integer 
     -- Record elements store their type and position in the record
-    | RecordType (Map.Map String (Int, Datatype))
+    | RecordType (Map.Map String (Int, RooType))
+    deriving (Eq, Show)
 
 data Variable = Variable {
-                    varType :: Datatype,
+                    varType :: RooType,
                     varReference :: Bool,
                     varLocation :: Int }
+                    deriving (Eq, Show)
 
-getSymTab :: Program -> GlobalSymTab
+symtab :: AST.Program -> SymbolTable
+symtab program = execState (vrProgram program) (SymbolTable {
+    typeAliases = Map.empty,
+    procedures = Map.empty })
+
+vrProgram :: AST.Program -> State SymbolTable ()
+vrProgram (AST.Program recordDecs arrayDecs procs) = do
+    mapM_ vrRecords recordDecs
+
+vrRecords :: AST.RecordDec -> State SymbolTable ()
+vrRecords (AST.RecordDec name fieldDecs) = do
+    currentSymTab <- get
+    let currentTypeAliases = typeAliases currentSymTab
+    if name `Map.member` (currentTypeAliases)
+        then fail "Duplicate definition"
+        else put (currentSymTab {
+            typeAliases = Map.insert
+                            name
+                            (RecordType $ vrFields fieldDecs)
+                            currentTypeAliases })
+
+vrFields :: [AST.FieldDec] -> Map.Map String (Int, RooType)
+vrFields fields
+  = foldl (\m (posn, (AST.FieldDec name rooType)) ->
+      Map.insert name (posn, primitiveType rooType) m
+    )
+    Map.empty
+    $ zip [0..] fields
+
+primitiveType :: AST.TypeName -> RooType
+primitiveType AST.BoolType = BoolType
+primitiveType AST.IntType = IntType
+
+{-
+getSymTab :: AST.Program -> GlobalSymTab
 getSymTab ast = GlobalSymTab (aliases ast) (procedures ast)
 
-aliases :: Program -> Map.Map String Datatype
-aliases (Program recs arrs _)
+trType :: AST.TypeName -> Datatype
+trType AST.BoolType = BoolType
+trType AST.IntType = IntType
+
+aliases :: AST.Program -> Map.Map String Datatype
+aliases (AST.Program recs arrs _)
   = foldl
         Map.empty
         (\m (k, v) -> Map.insertWithKey duplicateEntry k v m)
         ((map records recs) ++ (map arrays arrs))
 
-records :: [RecordDec] -> [Datatype]
+records :: [AST.RecordDec] -> [Datatype]
 records [] = []
-records ((RecordDec name f):xs)
+records ((AST.RecordDec name f):xs)
   = (name, RecordType (fieldDecs f)):(records xs)
 
-field :: [FieldDec] -> Map.Map String (Int, Datatype)
+field :: [AST.FieldDec] -> Map.Map String (Int, Datatype)
 field f
   = foldl
         Map.empty
         (\m (k, v) -> Map.insertWithKey duplicateEntry k v m)
         (map id (zip [0..] f))
 
-arrays :: [ArrayDec] -> [Datatype]
+arrays :: [AST.ArrayDec] -> [(String, Datatype)]
 arrays [] = []
-arrays ((ArrayDec name typeName size):xs)
-  = (name, ArrayType (primitiveType typeName) size):(arrays xs)
+arrays ((AST.ArrayDec name rooType size):xs)
+  = (name, ArrayType (trType rooType) size):(arrays xs)
 
-procedures :: Program -> Map.Map String Procedure
-procedures _ = error
+procedures :: AST.Program -> Map.Map String Procedure
+procedures _ = Map.empty
+-}
 
+duplicateEntry :: String -> a -> a -> String
 duplicateEntry key _ _
   = errorWithoutStackTrace "Duplicate definition of " ++ key
+
+semanticError = errorWithoutStackTrace
