@@ -9,6 +9,7 @@
 
 module StaticVerify where
 
+import Control.Monad (when)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
 import qualified AST
@@ -48,10 +49,11 @@ symtab program = execState (vrProgram program) (SymbolTable {
 
 vrProgram :: AST.Program -> State SymbolTable ()
 vrProgram (AST.Program recordDecs arrayDecs procs) = do
-    mapM_ vrRecords recordDecs
+    mapM vrRecord recordDecs
+    mapM_ vrArray arrayDecs
 
-vrRecords :: AST.RecordDec -> State SymbolTable ()
-vrRecords (AST.RecordDec name fieldDecs) = do
+vrRecord :: AST.RecordDec -> State SymbolTable ()
+vrRecord (AST.RecordDec name fieldDecs) = do
     currentSymTab <- get
     let currentTypeAliases = typeAliases currentSymTab
     if name `Map.member` (currentTypeAliases)
@@ -65,14 +67,41 @@ vrRecords (AST.RecordDec name fieldDecs) = do
 vrFields :: [AST.FieldDec] -> Map.Map String (Int, RooType)
 vrFields fields
   = foldl (\m (posn, (AST.FieldDec name rooType)) ->
-      Map.insert name (posn, primitiveType rooType) m
+      if name `Map.member` m
+         -- Can we make this error nicer?
+         then errorWithoutStackTrace "Duplicate field"
+         else Map.insert name (posn, fieldType rooType) m
     )
     Map.empty
     $ zip [0..] fields
 
-primitiveType :: AST.TypeName -> RooType
-primitiveType AST.BoolType = BoolType
-primitiveType AST.IntType = IntType
+fieldType :: AST.TypeName -> RooType
+fieldType AST.BoolType = BoolType
+fieldType AST.IntType = IntType
+-- Parser grammar guarantees field type is integer or string, so we should
+-- never get here.
+fieldType _ = error "Field is not integer or boolean"
+
+vrArray :: AST.ArrayDec -> State SymbolTable ()
+vrArray (AST.ArrayDec name rooType size) = do
+    when (size < 1) (fail "Array size must be > 0")
+    currentSymTab <- get
+    let currentTypeAliases = typeAliases currentSymTab
+    if name `Map.member` (currentTypeAliases)
+        then fail "Duplicate definition"
+        else put (currentSymTab {
+            typeAliases = Map.insert
+                            name
+                            (ArrayType (arrayType currentTypeAliases rooType) size)
+                            currentTypeAliases })
+
+arrayType :: Map.Map String RooType -> AST.TypeName -> RooType
+arrayType _ AST.BoolType = BoolType
+arrayType _ AST.IntType = IntType
+arrayType env (AST.AliasType name)
+  = case Map.lookup name env of
+      Just r@(RecordType _) -> r
+      _ -> errorWithoutStackTrace "Bad array type"
 
 {-
 getSymTab :: AST.Program -> GlobalSymTab
