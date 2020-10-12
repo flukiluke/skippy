@@ -31,7 +31,7 @@ data OzInstruction
     | OzLoadAddress Int Int
     | OzBranchOnFalse Int String
     | OzBranchUncond String
-    | OzAddOffset Int Int Int
+    | OzSubOffset Int Int Int
 
 instance Show OzInstruction where
     show (OzCall p) = "call " ++ p
@@ -80,7 +80,7 @@ instance Show OzInstruction where
     show (OzBranchOnFalse cond label) = "branch_on_false r" ++ show cond
         ++ ", " ++ label
     show (OzBranchUncond label) = "branch_uncond " ++ label
-    show (OzAddOffset target left right) = "add_offset r" ++ show target
+    show (OzSubOffset target left right) = "sub_offset r" ++ show target
         ++ ", r" ++ show left ++ ", r" ++ show right
 
 generateMachineCode :: Program -> [OzInstruction]
@@ -127,7 +127,7 @@ getLvalAddress (LId ident) table (r:_) =
 getLvalAddress (LArray ident expr) table (addr_r:offset_r:rs) =
     [load_instr addr_r slot]
     ++ generateExprCode expr table (offset_r:rs)
-    ++ [OzAddOffset addr_r addr_r offset_r]
+    ++ [OzSubOffset addr_r addr_r offset_r]
     where (VarSymbol _ is_ref _ slot) = findSymbol table ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
 
@@ -161,11 +161,11 @@ generateStmtCode parent table (Assign lval expr) =
     where (val_r:addr_r:rs) = initialRegisters
     
 
-generateStmtCode _ table (Read lval@(LId ident)) =
+generateStmtCode _ table (Read lval) =
     [OzCallBuiltin readBuiltin]
-    ++ if is_ref then [OzStore slot 0]
-    else [OzLoad 1 slot, OzStoreIndirect 1 0]
-    where (VarSymbol _ is_ref _ slot) = findSymbol table ident
+    ++ getLvalAddress lval table (addr_r:rs)
+    ++ [OzStoreIndirect addr_r val_r]
+    where (val_r:addr_r:rs) = initialRegisters
           readBuiltin =  case (getExprType (Lval lval)) of
                             BoolType -> "read_bool"
                             IntType  -> "read_int"
