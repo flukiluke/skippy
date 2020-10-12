@@ -11,6 +11,7 @@ module StaticVerify where
 
 import Control.Monad (when)
 import Control.Monad.State
+import Control.Monad.Except
 import qualified Data.Map.Strict as Map
 import qualified AST
 
@@ -42,17 +43,30 @@ data Variable = Variable {
                     varLocation :: Int }
                     deriving (Eq, Show)
 
-symtab :: AST.Program -> SymbolTable
-symtab program = execState (vrProgram program) (SymbolTable {
-    typeAliases = Map.empty,
-    procedures = Map.empty })
+data SemanticError
+    = DuplicateDefinition Integer Integer
+    | ArrayTooSmall Integer Integer
 
-vrProgram :: AST.Program -> State SymbolTable ()
+instance Show SemanticError where
+    show (DuplicateDefinition _ _) = "Duplicate definition"
+    show (ArrayTooSmall _ _) = "Array must have size > 0"
+
+type VerifierMonad = ExceptT SemanticError (State SymbolTable)
+
+emptySymTab :: SymbolTable
+emptySymTab = SymbolTable Map.empty Map.empty
+
+symtab :: AST.Program -> Either SemanticError SymbolTable
+symtab program = case runState (runExceptT (vrProgram program)) emptySymTab of
+                   (Left e, _) -> Left e
+                   (Right _, s) -> Right s
+
+vrProgram :: AST.Program -> VerifierMonad ()
 vrProgram (AST.Program recordDecs arrayDecs procs) = do
     mapM vrRecord recordDecs
     mapM_ vrArray arrayDecs
 
-vrRecord :: AST.RecordDec -> State SymbolTable ()
+vrRecord :: AST.RecordDec -> VerifierMonad ()
 vrRecord (AST.RecordDec name fieldDecs) = do
     currentSymTab <- get
     let currentTypeAliases = typeAliases currentSymTab
@@ -68,7 +82,6 @@ vrFields :: [AST.FieldDec] -> Map.Map String (Int, RooType)
 vrFields fields
   = foldl (\m (posn, (AST.FieldDec name rooType)) ->
       if name `Map.member` m
-         -- Can we make this error nicer?
          then errorWithoutStackTrace "Duplicate field"
          else Map.insert name (posn, fieldType rooType) m
     )
@@ -82,14 +95,15 @@ fieldType AST.IntType = IntType
 -- never get here.
 fieldType _ = error "Field is not integer or boolean"
 
-vrArray :: AST.ArrayDec -> State SymbolTable ()
+vrArray :: AST.ArrayDec -> VerifierMonad ()
 vrArray (AST.ArrayDec name rooType size) = do
-    when (size < 1) (fail "Array size must be > 0")
+    when (size < 1) (throwError $ ArrayTooSmall 0 0)
     currentSymTab <- get
     let currentTypeAliases = typeAliases currentSymTab
     if name `Map.member` (currentTypeAliases)
-        then fail "Duplicate definition"
-        else put (currentSymTab {
+        then semanticError "Duplicate definition"
+        else return ()
+    put (currentSymTab {
             typeAliases = Map.insert
                             name
                             (ArrayType (arrayType currentTypeAliases rooType) size)
