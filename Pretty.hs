@@ -175,7 +175,7 @@ whitespace i = concat $ take i $ repeat "    "
 -- we don't recognise.
 precedence :: Expr -> Int
 precedence (BinOpExpr o _ _) = maybe 8 id $ lookup o [
-    (Op_or, 1), (Op_and, 2), (Op_eq, 4), (Op_neq, 4), (Op_lt, 4),
+    (Op_or "", 1), (Op_and "", 2), (Op_eq, 4), (Op_neq, 4), (Op_lt, 4),
     (Op_lteq, 4), (Op_gt, 4), (Op_gteq, 4), (Op_plus, 5), (Op_minus, 5),
     (Op_mult, 6), (Op_divide, 6)]
 precedence (PreOpExpr o _)

@@ -58,18 +58,18 @@ instance Show OzInstruction where
     show OzReturn = "return"
     show (OzBinOp op target left right) = getOpStr op ++ " r" ++ show target
         ++ ", r" ++ show left ++ ", r" ++ show right
-            where getOpStr Op_or     = "or"
-                  getOpStr Op_and    = "and"
-                  getOpStr Op_eq     = "cmp_eq_int"
-                  getOpStr Op_neq    = "cmp_ne_int"
-                  getOpStr Op_lt     = "cmp_lt_int"
-                  getOpStr Op_lteq   = "cmp_le_int"
-                  getOpStr Op_gt     = "cmp_gt_int"
-                  getOpStr Op_gteq   = "cmp_ge_int"
-                  getOpStr Op_plus   = "add_int"
-                  getOpStr Op_minus  = "sub_int"
-                  getOpStr Op_mult   = "mul_int"
-                  getOpStr Op_divide = "div_int"
+            where getOpStr (Op_or _)  = "or"
+                  getOpStr (Op_and _) = "and"
+                  getOpStr Op_eq      = "cmp_eq_int"
+                  getOpStr Op_neq     = "cmp_ne_int"
+                  getOpStr Op_lt      = "cmp_lt_int"
+                  getOpStr Op_lteq    = "cmp_le_int"
+                  getOpStr Op_gt      = "cmp_gt_int"
+                  getOpStr Op_gteq    = "cmp_ge_int"
+                  getOpStr Op_plus    = "add_int"
+                  getOpStr Op_minus   = "sub_int"
+                  getOpStr Op_mult    = "mul_int"
+                  getOpStr Op_divide  = "div_int"
     show (OzUnaryOp op target tmp) = getOpStr op ++ " r" ++ show target
         ++ ", r" ++ show tmp
             where getOpStr Op_negate = "neg_int"
@@ -140,6 +140,33 @@ generateExprCode (Lval lval) table rs@(val_r:_) =
 generateExprCode (BoolLit b) _ (register:_) = [OzBoolConst register b]
 generateExprCode (IntLit int) _ (register:_) = [OzIntConst register int]
 generateExprCode (StrLit str) _ (register:_) = [OzStringConst register str]
+
+-- shortcircuit boolean operators
+-- e.g. x >= 0 and a[x] > 1
+generateExprCode (BinOpExpr op@(Op_or label) expr1 expr2)
+        table (result_r:left_r:right_r:rs) =
+    (generateExprCode expr1 table (left_r:rs))
+    -- if left is false, evaluate the right operand
+    ++ [OzBranchOnFalse left_r label_right]
+    -- otherwise, set the result to true and don't evaluate the right operand
+    ++ [OzBoolConst result_r True, OzBranchUncond label_skip, OzLabel label_right]
+    ++ (generateExprCode expr2 table (right_r:rs))
+    ++ [OzBinOp op result_r left_r right_r, OzLabel label_skip]
+        where label_skip = "label_" ++ label ++ "_skip"
+              label_right = "label_" ++ label ++ "_right"
+
+generateExprCode (BinOpExpr op@(Op_and label) expr1 expr2)
+        table (result_r:left_r:right_r:rs) =
+    (generateExprCode expr1 table (left_r:rs))
+    -- if left is true, evaluate the right operand
+    ++ [OzUnaryOp Op_not left_r left_r, OzBranchOnFalse left_r label_right]
+    -- otherwise, set the result to false and don't evaluate the right operand
+    ++ [OzBoolConst result_r False , OzBranchUncond label_skip
+       , OzLabel label_right, OzUnaryOp Op_not left_r left_r]
+    ++ (generateExprCode expr2 table (right_r:rs))
+    ++ [OzBinOp op result_r left_r right_r, OzLabel label_skip]
+        where label_skip = "label_" ++ label ++ "_skip"
+              label_right = "label_" ++ label ++ "_right"
 
 generateExprCode (BinOpExpr op expr1 expr2) table (result_r:left_r:right_r:rs) =
     (generateExprCode expr1 table (left_r:rs))

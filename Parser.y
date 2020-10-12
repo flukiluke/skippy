@@ -184,8 +184,8 @@ Expr        : Lvalue                              { Lval $1 }
             | integer_lit                         { IntLit $1 }
             | string_lit                          { StrLit $1 }
             | '(' Expr ')'                        { $2 }
-            | Expr or Expr                        { BinOpExpr Op_or $1 $3 }
-            | Expr and Expr                       { BinOpExpr Op_and $1 $3 }
+            | Expr or Expr                        { BinOpExpr (Op_or $ getLabel $2) $1 $3 }
+            | Expr and Expr                       { BinOpExpr (Op_and $ getLabel $2) $1 $3 }
             | not Expr                            { PreOpExpr Op_not $2 }
             | Expr '=' Expr                       { BinOpExpr Op_eq $1 $3 }
             | Expr '!=' Expr                      { BinOpExpr Op_neq $1 $3 }

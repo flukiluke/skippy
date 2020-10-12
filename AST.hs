@@ -109,8 +109,8 @@ instance Show PreOp where
 
 -- Binary infix operators
 data BinOp 
-    = Op_or
-    | Op_and
+    = Op_or String
+    | Op_and String
     | Op_eq
     | Op_neq
     | Op_lt
@@ -124,8 +124,8 @@ data BinOp
     deriving (Eq)
 
 instance Show BinOp where
-    show Op_or = "or"
-    show Op_and = "and"
+    show (Op_or _) = "or"
+    show (Op_and _) = "and"
     show Op_eq = "="
     show Op_neq = "!="
     show Op_lt = "<"
