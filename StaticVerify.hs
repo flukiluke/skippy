@@ -70,13 +70,12 @@ vrRecord :: AST.RecordDec -> VerifierMonad ()
 vrRecord (AST.RecordDec name fieldDecs) = do
     currentSymTab <- get
     let currentTypeAliases = typeAliases currentSymTab
-    if name `Map.member` (currentTypeAliases)
-        then fail "Duplicate definition"
-        else put (currentSymTab {
-            typeAliases = Map.insert
-                            name
-                            (RecordType $ vrFields fieldDecs)
-                            currentTypeAliases })
+    when (name `Map.member` currentTypeAliases) (throwError $ DuplicateDefinition 0 0)
+    put (currentSymTab {
+        typeAliases = Map.insert
+                        name
+                        (RecordType $ vrFields fieldDecs)
+                        currentTypeAliases })
 
 vrFields :: [AST.FieldDec] -> Map.Map String (Int, RooType)
 vrFields fields
@@ -93,18 +92,16 @@ fieldType AST.BoolType = BoolType
 fieldType AST.IntType = IntType
 -- Parser grammar guarantees field type is integer or string, so we should
 -- never get here.
-fieldType _ = error "Field is not integer or boolean"
+fieldType _ = error "fieldType: Field is not integer or boolean"
 
 vrArray :: AST.ArrayDec -> VerifierMonad ()
 vrArray (AST.ArrayDec name rooType size) = do
     when (size < 1) (throwError $ ArrayTooSmall 0 0)
     currentSymTab <- get
     let currentTypeAliases = typeAliases currentSymTab
-    if name `Map.member` (currentTypeAliases)
-        then semanticError "Duplicate definition"
-        else return ()
+    when (name `Map.member` currentTypeAliases) (throwError $ DuplicateDefinition 0 0)
     put (currentSymTab {
-            typeAliases = Map.insert
+        typeAliases = Map.insert
                             name
                             (ArrayType (arrayType currentTypeAliases rooType) size)
                             currentTypeAliases })
