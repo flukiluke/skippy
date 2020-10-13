@@ -46,10 +46,12 @@ data Variable = Variable {
 data SemanticError
     = DuplicateDefinition Integer Integer
     | ArrayTooSmall Integer Integer
+    | BadArrayType Integer Integer
 
 instance Show SemanticError where
     show (DuplicateDefinition _ _) = "Duplicate definition"
     show (ArrayTooSmall _ _) = "Array must have size > 0"
+    show (BadArrayType _ _) = "Array type must be integer, boolean or a record"
 
 type VerifierMonad = ExceptT SemanticError (State SymbolTable)
 
@@ -69,20 +71,17 @@ vrProgram (AST.Program recordDecs arrayDecs procs) = do
 vrRecord :: AST.RecordDec -> VerifierMonad ()
 vrRecord (AST.RecordDec name fieldDecs) = do
     currentSymTab <- get
-    let currentTypeAliases = typeAliases currentSymTab
-    when (name `Map.member` currentTypeAliases) (throwError $ DuplicateDefinition 0 0)
-    put (currentSymTab {
-        typeAliases = Map.insert
-                        name
-                        (RecordType $ vrFields fieldDecs)
-                        currentTypeAliases })
+    types <- gets typeAliases
+    fields <- vrFields fieldDecs
+    when (name `Map.member` types) (throwError $ DuplicateDefinition 0 0)
+    modify (\s -> s { typeAliases = Map.insert name (RecordType fields) types })
 
-vrFields :: [AST.FieldDec] -> Map.Map String (Int, RooType)
+vrFields :: [AST.FieldDec] -> VerifierMonad (Map.Map String (Int, RooType))
 vrFields fields
-  = foldl (\m (posn, (AST.FieldDec name rooType)) ->
+  = foldM (\m (posn, (AST.FieldDec name rooType)) ->
       if name `Map.member` m
-         then errorWithoutStackTrace "Duplicate field"
-         else Map.insert name (posn, fieldType rooType) m
+         then throwError (DuplicateDefinition 0 0)
+         else return (Map.insert name (posn, fieldType rooType) m)
     )
     Map.empty
     $ zip [0..] fields
@@ -97,61 +96,17 @@ fieldType _ = error "fieldType: Field is not integer or boolean"
 vrArray :: AST.ArrayDec -> VerifierMonad ()
 vrArray (AST.ArrayDec name rooType size) = do
     when (size < 1) (throwError $ ArrayTooSmall 0 0)
-    currentSymTab <- get
-    let currentTypeAliases = typeAliases currentSymTab
-    when (name `Map.member` currentTypeAliases) (throwError $ DuplicateDefinition 0 0)
-    put (currentSymTab {
-        typeAliases = Map.insert
-                            name
-                            (ArrayType (arrayType currentTypeAliases rooType) size)
-                            currentTypeAliases })
+    types <- gets typeAliases
+    elementType <- arrayType rooType
+    when (name `Map.member` types) (throwError $ DuplicateDefinition 0 0)
+    modify (\s -> s { typeAliases = Map.insert name (elementType size) types })
 
-arrayType :: Map.Map String RooType -> AST.TypeName -> RooType
-arrayType _ AST.BoolType = BoolType
-arrayType _ AST.IntType = IntType
-arrayType env (AST.AliasType name)
-  = case Map.lookup name env of
-      Just r@(RecordType _) -> r
-      _ -> errorWithoutStackTrace "Bad array type"
-
-{-
-getSymTab :: AST.Program -> GlobalSymTab
-getSymTab ast = GlobalSymTab (aliases ast) (procedures ast)
-
-trType :: AST.TypeName -> Datatype
-trType AST.BoolType = BoolType
-trType AST.IntType = IntType
-
-aliases :: AST.Program -> Map.Map String Datatype
-aliases (AST.Program recs arrs _)
-  = foldl
-        Map.empty
-        (\m (k, v) -> Map.insertWithKey duplicateEntry k v m)
-        ((map records recs) ++ (map arrays arrs))
-
-records :: [AST.RecordDec] -> [Datatype]
-records [] = []
-records ((AST.RecordDec name f):xs)
-  = (name, RecordType (fieldDecs f)):(records xs)
-
-field :: [AST.FieldDec] -> Map.Map String (Int, Datatype)
-field f
-  = foldl
-        Map.empty
-        (\m (k, v) -> Map.insertWithKey duplicateEntry k v m)
-        (map id (zip [0..] f))
-
-arrays :: [AST.ArrayDec] -> [(String, Datatype)]
-arrays [] = []
-arrays ((AST.ArrayDec name rooType size):xs)
-  = (name, ArrayType (trType rooType) size):(arrays xs)
-
-procedures :: AST.Program -> Map.Map String Procedure
-procedures _ = Map.empty
--}
-
-duplicateEntry :: String -> a -> a -> String
-duplicateEntry key _ _
-  = errorWithoutStackTrace "Duplicate definition of " ++ key
-
-semanticError = errorWithoutStackTrace
+-- Note: partially applied data constructor so size can be added by caller
+arrayType :: AST.TypeName -> VerifierMonad (Integer -> RooType)
+arrayType AST.BoolType = return $ ArrayType BoolType
+arrayType AST.IntType = return $ ArrayType IntType
+arrayType (AST.AliasType name) = do
+    types <- gets typeAliases
+    case Map.lookup name types of
+        Just r@(RecordType _) -> return $ ArrayType r
+        _ -> throwError $ BadArrayType 0 0
