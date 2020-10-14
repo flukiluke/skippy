@@ -33,7 +33,7 @@ instance Show FieldDec where
     show (FieldDec ident typename) = (show typename) ++ " " ++ ident
 
 data ArrayDec
-    = ArrayDec Ident TypeName Integer
+    = ArrayDec Ident TypeName Int
     deriving (Show, Eq)
 
 data Proc
@@ -50,7 +50,9 @@ instance Show Parameter where
     show (ValParam ident typename) = (show typename) ++ " val " ++ ident
 
 data VarDec
-    = VarDec [Ident] TypeName
+    = VarDec {
+        varDecNames :: [Ident],
+        varDecType :: TypeName }
     deriving (Eq)
 
 instance Show VarDec where
@@ -91,7 +93,7 @@ data LValue
 data Expr
     = Lval LValue
     | BoolLit Bool
-    | IntLit Integer
+    | IntLit Int
     | StrLit String
     | BinOpExpr BinOp Expr Expr
     | PreOpExpr PreOp Expr

@@ -2,63 +2,189 @@
 --
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
+--
+-- This module builds a symbol table for the entire program. It also performs
+-- some semantic checks where convenient: it checks uniqueness of names and
+-- array sizes.
 
 module SymbolTable where
 
-import AST
-import qualified Data.Map.Lazy as Map
+import Control.Monad (when)
+import Control.Monad.State
+import Control.Monad.Except
+import Data.List (sortBy)
+import Data.Ord (comparing)
+import qualified Data.Map.Strict as Map
+import qualified AST
 
-data Symbol
-    = ProcSymbol
-        SymbolTable -- variables
-        Int -- stack frame size
-    | VarSymbol TypeName Bool Bool Int -- is reference, is parameter, location
-    | FieldSymbol TypeName Int
-    | TypeSymbol SymbolTable
+newtype ProcSig = ProcSig [RooType]
+    deriving (Eq, Show)
 
-data SymbolTable = SymbolTable (Map.Map String Symbol) (Maybe SymbolTable)
+data SymbolTable = SymbolTable {
+                    typeAliases :: Map.Map String RooType,
+                    procedures :: Map.Map String Procedure }
+                    deriving (Eq, Show)
 
-findSymbol :: SymbolTable -> String -> Symbol
-findSymbol (SymbolTable table (Just parent)) ident = symbol
-    -- check the parent if the key isn't in this table
-    where symbol = Map.findWithDefault (findSymbol parent ident) ident table
 
-findSymbol (SymbolTable table Nothing) ident = table Map.! ident
+data Procedure = Procedure {
+                    procSig :: [Variable],
+                    procSymTab :: (Map.Map String Variable),
+                    procStackSize :: Int }
+                    deriving (Eq, Show)
 
-getSymbolTable :: Program -> SymbolTable
-getSymbolTable (Program rs as ps) = symtable
-    where symtable = SymbolTable (Map.fromList $ concat [proc_syms, record_syms])
-              Nothing
-          proc_syms = map (getProcSym symtable) ps
-          record_syms = map getTypeSym rs
-          -- array_syms = map getTypeSym rs
+data RooType
+    = IntType
+    | BoolType
+    | StringType
+    | ArrayType RooType Int
+    -- Record elements store their type and position in the record
+    | RecordType (Map.Map String (Int, RooType))
+    deriving (Eq, Show)
 
-getProcSym :: SymbolTable -> Proc -> (String, Symbol)
-getProcSym parent (Proc ident ps vs _) = (ident, ProcSymbol table frame_size)
-    where table = SymbolTable (Map.fromList $ zipFunction vars [0..]) (Just parent)
-          vars = (map getParamSyms ps) ++ (concat $ map getVarSyms vs)
-          frame_size = length ps + length vs
+data Variable = Variable {
+                    varType :: RooType,
+                    varByRef :: Bool,
+                    varStackSlot :: Int }
+                    deriving (Eq, Show)
 
-zipFunction :: [(a -> b)] -> [a] -> [b]
-zipFunction (f:fs) (a:as) = (f a : zipFunction fs as)
-zipFunction [] _ = []
-zipFunction _ [] = []
+data SemanticError
+    = DuplicateDefinition Int Int
+    | ArrayTooSmall Int Int
+    | BadArrayType Int Int
+    | BadVariableType Int Int
 
-getVarSyms :: VarDec -> [Int -> (String, Symbol)]
-getVarSyms (VarDec idents typename) = map f idents
-    where f x = getVarSym x typename False False
+instance Show SemanticError where
+    show (DuplicateDefinition _ _) = "Duplicate definition"
+    show (ArrayTooSmall _ _) = "Array must have size > 0"
+    show (BadArrayType _ _) = "Array type must be integer, boolean or a record"
+    show (BadVariableType _ _) = "Unknown type for variable"
 
-getVarSym :: String -> TypeName -> Bool -> Bool -> Int -> (String, Symbol)
-getVarSym ident typename is_ref is_param slot
-  = (ident, VarSymbol typename is_ref is_param slot)
+type SymTabMonad = ExceptT SemanticError (State SymbolTable)
 
-getParamSyms :: Parameter -> Int -> (String, Symbol)
-getParamSyms (RefParam ident typename) = getVarSym ident typename True True
-getParamSyms (ValParam ident typename) = getVarSym ident typename False True
+emptySymTab :: SymbolTable
+emptySymTab = SymbolTable Map.empty Map.empty
 
-getFieldSym :: FieldDec -> (String, Symbol)
-getFieldSym (FieldDec ident typename) = (ident, FieldSymbol typename 0)
+symtab :: AST.Program -> Either SemanticError SymbolTable
+symtab program = case runState (runExceptT (stProgram program)) emptySymTab of
+                   (Left e, _) -> Left e
+                   (Right _, s) -> Right s
 
-getTypeSym :: RecordDec -> (String, Symbol)
-getTypeSym (RecordDec ident fs) = (ident, TypeSymbol table)
-    where table = SymbolTable (Map.fromList $ map getFieldSym fs) Nothing
+stProgram :: AST.Program -> SymTabMonad ()
+stProgram (AST.Program recordDecs arrayDecs procs) = do
+    mapM stRecord recordDecs
+    mapM stArray arrayDecs
+    mapM_ stProcedure procs
+
+stRecord :: AST.RecordDec -> SymTabMonad ()
+stRecord (AST.RecordDec name fieldDecs) = do
+    currentSymTab <- get
+    types <- gets typeAliases
+    fields <- stFields fieldDecs
+    when (name `Map.member` types) (throwError $ DuplicateDefinition 0 0)
+    modify (\s -> s { typeAliases = Map.insert name (RecordType fields) types })
+
+stFields :: [AST.FieldDec] -> SymTabMonad (Map.Map String (Int, RooType))
+stFields fields
+  = foldM (\m (posn, (AST.FieldDec name rooType)) ->
+      if name `Map.member` m
+         then throwError (DuplicateDefinition 0 0)
+         else return (Map.insert name (posn, fieldType rooType) m)
+    )
+    Map.empty
+    $ zip [0..] fields
+
+fieldType :: AST.TypeName -> RooType
+fieldType AST.BoolType = BoolType
+fieldType AST.IntType = IntType
+-- Parser grammar guarantees field type is integer or string, so we should
+-- never get here.
+fieldType _ = error "fieldType: Field is not integer or boolean"
+
+stArray :: AST.ArrayDec -> SymTabMonad ()
+stArray (AST.ArrayDec name rooType size) = do
+    when (size < 1) (throwError $ ArrayTooSmall 0 0)
+    typeAliases' <- gets typeAliases
+    arrayType' <- arrayType rooType
+    when (name `Map.member` typeAliases') (throwError $ DuplicateDefinition 0 0)
+    modify (\s -> s {
+        typeAliases = Map.insert name (arrayType' size) typeAliases' })
+
+-- Note: partially applied data constructor so size can be added by caller
+arrayType :: AST.TypeName -> SymTabMonad (Int -> RooType)
+arrayType AST.BoolType = return $ ArrayType BoolType
+arrayType AST.IntType = return $ ArrayType IntType
+arrayType (AST.AliasType name) = do
+    typeAliases' <- gets typeAliases
+    case Map.lookup name typeAliases' of
+        Just r@(RecordType _) -> return $ ArrayType r
+        _ -> throwError $ BadArrayType 0 0
+
+stProcedure :: AST.Proc -> SymTabMonad ()
+stProcedure (AST.Proc name parameters locals _) = do
+    procedures' <- gets procedures
+    parameters' <- stParameters parameters
+    locals' <- stLocals locals parameters'
+    when (name `Map.member` procedures') (throwError $ DuplicateDefinition 0 0)
+    let procedure = Procedure {
+        procSig = sortBy (comparing varStackSlot) . Map.elems $ parameters',
+        procSymTab = locals',
+        procStackSize = stackSize locals' }
+    modify (\s -> s {
+        procedures = Map.insert name procedure procedures' })
+
+variableSize :: Variable -> Int
+variableSize Variable {
+    varType = ArrayType (RecordType fields) size,
+    varByRef = False } = size * Map.size fields
+variableSize Variable {
+    varType = ArrayType _ size,
+    varByRef = False } = size
+variableSize Variable {
+    varType = RecordType fields,
+    varByRef = False } = Map.size fields
+variableSize _ = 1
+
+stackSize :: (Map.Map String Variable) -> Int
+stackSize = Map.foldr' ((+) . variableSize) 0
+
+stParameters :: [AST.Parameter] -> SymTabMonad (Map.Map String Variable)
+stParameters parameters
+  = foldM checkAndInsert' Map.empty $ parameters
+      where
+          checkAndInsert' m p@(AST.RefParam name rooType)
+            = checkAndInsert True m name rooType
+          checkAndInsert' m p@(AST.ValParam name rooType)
+            = checkAndInsert False m name rooType
+          checkAndInsert byRef m name rooType = do
+              paramType' <- paramType rooType
+              if name `Map.member` m
+                 then throwError (DuplicateDefinition 0 0)
+                 else return (Map.insert name (Variable {
+                        varType = paramType',
+                        varByRef = byRef,
+                        varStackSlot = Map.size m }) m)
+
+paramType :: AST.TypeName -> SymTabMonad (RooType)
+paramType AST.BoolType = return $ BoolType
+paramType AST.IntType = return $ IntType
+paramType (AST.AliasType typeName) = do
+    typeAliases' <- gets typeAliases
+    let l = Map.lookup typeName typeAliases'
+     in case l of
+          Just t -> return t
+          Nothing -> throwError $ BadVariableType 0 0
+
+stLocals :: [AST.VarDec] -> (Map.Map String Variable) -> SymTabMonad (Map.Map String Variable)
+stLocals locals currentVariables
+  = foldM checkAndInsert currentVariables $ expandVarDecs locals
+      where
+          expandVarDecs decs
+            = [(v, AST.varDecType d) | d <- decs, v <- (AST.varDecNames d)]
+          checkAndInsert m (name, rooType) = do
+              varType' <- paramType rooType
+              if name `Map.member` m
+                 then throwError (DuplicateDefinition 0 0)
+                 else return (Map.insert name (Variable {
+                        varType = varType',
+                        varByRef = False,
+                        varStackSlot = stackSize m }) m)

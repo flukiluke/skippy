@@ -60,7 +60,7 @@ data Token
     = Identifier String
     | Keyword String
     | BooleanLit Bool
-    | IntegerLit Integer
+    | IntegerLit Int
     | StringLit String
     | Symbol String
     | EOF

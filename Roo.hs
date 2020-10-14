@@ -18,7 +18,7 @@ import System.Exit (exitWith, ExitCode(..))
 import Scanner (scan)
 import Parser (parse)
 import Pretty (pprint)
-import StaticVerify
+import SymbolTable (symtab)
 import CodeGen (generateMachineCode)
 
 data Task
