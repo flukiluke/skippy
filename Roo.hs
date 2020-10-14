@@ -52,7 +52,7 @@ main
         Compile
           -> case output of
                Right ast
-                  -> putStrLn . show . symtab $ ast
+                  -> mapM_ (putStrLn . show) $ generateMachineCode ast
                Left err
                   -> putStrLn err >> exitWith (ExitFailure 2)
 

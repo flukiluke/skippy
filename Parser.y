@@ -163,9 +163,8 @@ Statement   : Lvalue assign Expr ';'              { Assign $1 $3 }
             | write Expr ';'                      { Write $2 }
             | writeln Expr ';'                    { WriteLn $2 }
             | call id '(' Args ')' ';'            { Call $2 (reverse $4) }
-            | if Expr then Statements ElseClause fi
-                { If $2 (reverse $4) $5 $ getLabel $1 }
-            | while Expr do Statements od         { While $2 (reverse $4) $ getLabel $1 }
+            | if Expr then Statements ElseClause fi { If $2 (reverse $4) $5 }
+            | while Expr do Statements od         { While $2 (reverse $4) }
 
 ElseClause  : {- empty -}                         { [] }
             | else Statements                     { (reverse $2) }
@@ -216,7 +215,4 @@ parseError ((p, t), explist)
 -- everything match up.
 lexwrap :: ((AlexPosn, Token) -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
-
-getLabel :: (AlexPosn, Token) -> String
-getLabel ((AlexPn x _ _), _) = show x
 }
