@@ -19,7 +19,8 @@ import Scanner (scan)
 import Parser (parse)
 import Pretty (pprint)
 import SymbolTable (symtab)
-import CodeGen (generateMachineCode)
+import SemanticCheck (checkProgram)
+-- import CodeGen (generateMachineCode)
 
 data Task
     = Parse | Pprint | Lex | Compile
@@ -28,46 +29,16 @@ data Task
 main :: IO ()
 main
   = do
-      progname <- getProgName
       args <- getArgs
-      task <- checkArgs progname args
-      let filename = last args
-      input <- readFile filename
-      let output = scan input parse
-      case task of
-        -- Dump AST with no particular format
-        Parse
-          -> case output of
-                Right ast
-                  -> putStrLn (show ast)
-                Left err
-                  -> putStrLn err >> exitWith (ExitFailure 2)
-        -- Pretty print the input program; format then suitable for input
-        Pprint
-          -> case output of
-                Right ast
-                  -> pprint ast
-                Left err
-                  -> putStrLn err >> exitWith (ExitFailure 2)
-        Compile
-          -> case output of
-               Right ast
-                  -> mapM_ (putStrLn . show) $ generateMachineCode ast
-               Left err
-                  -> putStrLn err >> exitWith (ExitFailure 2)
+      input <- readFile . last $ args
+      case compile input of
+        Left e -> putStrLn e
+        Right () -> putStrLn "OK"
 
-checkArgs :: String -> [String] -> IO Task
-checkArgs _ ['-':_]
-  = do
-      putStrLn ("Missing filename")
-      exitWith (ExitFailure 1)
-checkArgs _ ["-a", filename]
-  = return Parse
-checkArgs _ ["-p", filename]
-  = return Pprint
-checkArgs _ [filename]
-  = return Compile
-checkArgs progname _
-  = do
-      putStrLn ("Usage: " ++ progname ++ " -[pa] filename")
-      exitWith (ExitFailure 1)
+compile :: String -> Either String ()
+compile input = do
+    ast <- scan input parse
+    symbolTable <- symtab ast
+    checkProgram symbolTable ast
+
+

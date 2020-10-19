@@ -16,19 +16,20 @@ import Data.List (sortBy)
 import Data.Ord (comparing)
 import qualified Data.Map.Strict as Map
 import qualified AST
+import SemanticErrors
 
-newtype ProcSig = ProcSig [RooType]
-    deriving (Eq, Show)
+type ProcSig = [RooType]
+
+type Locals = Map.Map String Variable
 
 data SymbolTable = SymbolTable {
                     typeAliases :: Map.Map String RooType,
                     procedures :: Map.Map String Procedure }
                     deriving (Eq, Show)
 
-
 data Procedure = Procedure {
                     procSig :: [Variable],
-                    procSymTab :: (Map.Map String Variable),
+                    procSymTab :: Locals,
                     procStackSize :: Int }
                     deriving (Eq, Show)
 
@@ -47,27 +48,23 @@ data Variable = Variable {
                     varStackSlot :: Int }
                     deriving (Eq, Show)
 
-data SemanticError
-    = DuplicateDefinition Int Int
-    | ArrayTooSmall Int Int
-    | BadArrayType Int Int
-    | BadVariableType Int Int
-
-instance Show SemanticError where
-    show (DuplicateDefinition _ _) = "Duplicate definition"
-    show (ArrayTooSmall _ _) = "Array must have size > 0"
-    show (BadArrayType _ _) = "Array type must be integer, boolean or a record"
-    show (BadVariableType _ _) = "Unknown type for variable"
-
 type SymTabMonad = ExceptT SemanticError (State SymbolTable)
 
 emptySymTab :: SymbolTable
 emptySymTab = SymbolTable Map.empty Map.empty
 
-symtab :: AST.Program -> Either SemanticError SymbolTable
+symtab :: AST.Program -> Either String SymbolTable
 symtab program = case runState (runExceptT (stProgram program)) emptySymTab of
-                   (Left e, _) -> Left e
+                   (Left e, _) -> Left . show $ e
                    (Right _, s) -> Right s
+
+getProc :: SymbolTable -> String -> Procedure
+getProc symbolTable procName
+  = (procedures symbolTable) Map.! procName
+
+getLocal :: Locals -> String -> Variable
+getLocal locals name
+  = locals Map.! name
 
 stProgram :: AST.Program -> SymTabMonad ()
 stProgram (AST.Program recordDecs arrayDecs procs) = do
@@ -174,7 +171,7 @@ paramType (AST.AliasType typeName) = do
           Just t -> return t
           Nothing -> throwError $ BadVariableType 0 0
 
-stLocals :: [AST.VarDec] -> (Map.Map String Variable) -> SymTabMonad (Map.Map String Variable)
+stLocals :: [AST.VarDec] -> (Map.Map String Variable) -> SymTabMonad Locals
 stLocals locals currentVariables
   = foldM checkAndInsert currentVariables $ expandVarDecs locals
       where
