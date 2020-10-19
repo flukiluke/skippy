@@ -22,10 +22,6 @@ import SymbolTable (symtab)
 import SemanticCheck (checkProgram)
 -- import CodeGen (generateMachineCode)
 
-data Task
-    = Parse | Pprint | Lex | Compile
-    deriving (Eq, Show)
-
 main :: IO ()
 main
   = do
