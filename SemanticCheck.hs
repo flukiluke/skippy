@@ -22,11 +22,11 @@ checkProcedure symtab (AST.Proc name _ _ stmts) = do
             locals = procSymTab $ getProc symtab name
 
 checkStmt :: SymbolTable -> Locals -> AST.Stmt -> Result ()
-checkStmt symtab locals (AST.Assign lvalue expr) = do
+checkStmt symtab locals (AST.Assign posn lvalue expr) = do
     leftType <- lvalType symtab locals lvalue
     rightType <- exprType symtab locals expr
     unless (leftType == rightType) $
-        Left (TypeMismatch (show leftType) (show rightType) 0 0)
+        Left (TypeMismatch posn (show leftType) (show rightType))
 
 checkStmt symtab locals (AST.Read lvalue) = lvalType symtab locals lvalue >> return ()
 
@@ -64,7 +64,7 @@ checkArg symtab locals expected passed = do
 
 exprType :: SymbolTable -> Locals -> AST.Expr -> Result RooType
 exprType symtab locals (AST.Lval lval) = lvalType symtab locals lval
-exprType _ locals (AST.BoolLit _) = Right BoolType
+exprType _ locals (AST.BoolLit _ _) = Right BoolType
 exprType _ locals (AST.IntLit _) = Right IntType
 exprType _ locals (AST.StrLit _) = Right StringType
 exprType symtab locals (AST.BinOpExpr AST.Op_or l r)
