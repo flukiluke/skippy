@@ -135,7 +135,10 @@ lvalType symtab locals (AST.LArrayField posn arrayName index fieldName) = do
     let (ArrayType arrayType _) = varType array
     unless (isRecordType arrayType) $
         Left (UnexpectedField posn)
-    return IntType
+    let (RecordType fields) = arrayType
+    fieldDec <- lookup' fieldName fields $ UndeclaredSymbol posn fieldName
+    let (_, fieldType) = fieldDec
+    return fieldType
 
 logicalBinOpType :: SymbolTable -> Locals -> AST.Expr -> AST.Expr -> Result RooType
 logicalBinOpType = uniformBinOpType BoolType
@@ -149,7 +152,7 @@ uniformBinOpType expectedType symtab locals l r = do
     rightType <- exprType symtab locals r
     unless (leftType == expectedType) $
         Left (TypeMismatch (AST.exprPosn l) (show expectedType) (show leftType))
-    unless (rightType == BoolType) $
+    unless (rightType == expectedType) $
         Left (TypeMismatch (AST.exprPosn r) (show expectedType) (show rightType))
     return expectedType
 

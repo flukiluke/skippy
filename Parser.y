@@ -159,7 +159,7 @@ LocalVarDec : id LocalVars ';'
             | integer LocalVars ';'
                 { $$ = VarDec (getPosn $1) (reverse $2) IntType }
 
-LocalVars   : id                                { $$ = [$1] }
+LocalVars   : id                                { $$ = [unIdent $1] }
             | LocalVars ',' id                  { $$ = (unIdent $3) : $1 }
 
 Statements  : Statement                         { $$ = [$1] }
