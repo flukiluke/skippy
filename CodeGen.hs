@@ -119,7 +119,7 @@ getLvalAddress locals (AST.LId _ ident) (r:_) =
     where (Variable _ is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
 
-getLvalAddress locals (AST.LField _ var_ident field_ident) (addr_r:offset_r:rs) =
+getLvalAddress locals (AST.LField _ var_ident field_ident) (addr_r:offset_r:_) =
     [load_instr addr_r slot]
     ++ [OzIntConst offset_r offset]
     ++ [OzSubOffset addr_r addr_r offset_r]
@@ -132,6 +132,23 @@ getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:rs) =
     ++ generateExprCode locals expr (offset_r:rs)
     ++ [OzSubOffset addr_r addr_r offset_r]
     where (Variable _ is_ref slot) = getLocal locals ident
+          load_instr = if is_ref then OzLoad else OzLoadAddress
+
+getLvalAddress locals (AST.LArrayField _ var_ident expr field_ident) (addr_r:offset_r:field_offset_r:rs) =
+    [load_instr addr_r slot]
+    ++ generateExprCode locals expr (offset_r:rs)
+    -- multiply array offset by the field size
+    ++ [ OzIntConst field_offset_r record_size
+       , OzBinOp AST.Op_mult offset_r offset_r field_offset_r
+       -- add the field offset
+       , OzIntConst field_offset_r field_offset
+       , OzBinOp AST.Op_plus offset_r offset_r field_offset_r
+       ]
+    ++ [OzSubOffset addr_r addr_r offset_r]
+    where (Variable (ArrayType (RecordType fields) _) is_ref slot)
+              = getLocal locals var_ident
+          (field_offset,_) = fields Map.! field_ident
+          record_size = Map.size fields
           load_instr = if is_ref then OzLoad else OzLoadAddress
 
 -- expression, table, registers available for use
