@@ -55,7 +55,7 @@ instance Show OzInstruction where
     show (OzBoolConst target c) = "int_const r" ++ show target ++ ", " ++ bool_lit c
         where bool_lit True = "1"
               bool_lit False = "0"
-    show (OzStringConst target c) = "string_const r" ++ show target ++ ", " ++ show c
+    show (OzStringConst target c) = "string_const r" ++ show target ++ ", \"" ++ c ++ "\""
     show OzReturn = "return"
     show (OzBinOp op target left right) = getOpStr op ++ " r" ++ show target
         ++ ", r" ++ show left ++ ", r" ++ show right
