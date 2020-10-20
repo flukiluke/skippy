@@ -103,21 +103,29 @@ generateProcCode table (AST.Proc _ ident ps _ stmts) rs =
     ++ (if length ps > 0 then map (\x -> OzStore x x) [0.. length ps - 1]
     else [])
     -- initialise variables
-    ++ (if stack_size - length ps > 0 then do
-        [OzIntConst 0 0] ++ (map (\x -> OzStore x 0) $ take stack_size [0..])
+    ++ (if local_size > 0 then do
+        [OzIntConst 0 0] ++ (map (\x -> OzStore x 0) $ take local_size [length ps..])
     else [])
     -- get statement code
     ++ (concatMap (generateStmtCode table locals) stmts)
     -- cleanup
     ++ [OzPopStackFrame stack_size, OzReturn]
         where (Procedure _ locals stack_size) = getProc table ident
-              labels = [0..]
+              local_size = stack_size - length ps
 
 getLvalAddress :: Locals -> AST.LValue -> [Int] -> [OzInstruction]
 getLvalAddress locals (AST.LId _ ident) (r:_) =
     [load_instr r slot]
     where (Variable _ is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
+
+getLvalAddress locals (AST.LField _ var_ident field_ident) (addr_r:offset_r:rs) =
+    [load_instr addr_r slot]
+    ++ [OzIntConst offset_r offset]
+    ++ [OzSubOffset addr_r addr_r offset_r]
+        where (Variable (RecordType fields) is_ref slot) = getLocal locals var_ident
+              (offset,_) = fields Map.! field_ident
+              load_instr = if is_ref then OzLoad else OzLoadAddress
 
 getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:rs) =
     [load_instr addr_r slot]
@@ -183,7 +191,7 @@ generateStmtCode _ locals (AST.WriteLn _ expr) =
 
 generateStmtCode table locals (AST.Call _ ident exprs) =
     -- prepare arguments to be passed
-    (concatMap prepareParam (zip [1..] args)) ++ [OzCall ident]
+    (concatMap prepareParam (zip [0..] args)) ++ [OzCall ident]
     where (Procedure args _ _) = getProc table ident
           prepareParam (arg_idx, Variable _ True _) = do
             -- passed in as a ref
