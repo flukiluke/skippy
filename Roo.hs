@@ -18,8 +18,9 @@ import System.Exit (exitWith, ExitCode(..))
 import Scanner (scan)
 import Parser (parse)
 -- import Pretty (pprint)
-import SymbolTable (symtab)
+import SymbolTable (makeSymtab)
 import SemanticCheck (checkProgram)
+import ErrorHandling (semanticError, SemanticError)
 -- import CodeGen (generateMachineCode)
 
 main :: IO ()
@@ -31,10 +32,15 @@ main
         Left e -> putStrLn e
         Right () -> putStrLn "OK"
 
+-- A semantic stage is one that can produce a SemanticError
+semanticStage :: String -> Either SemanticError a -> Either String a
+semanticStage input result
+  = case result of
+      Left e -> Left $ semanticError e input
+      Right s -> Right s
+
 compile :: String -> Either String ()
 compile input = do
     ast <- scan input parse
-    symbolTable <- symtab ast
-    checkProgram symbolTable ast
-
-
+    symbolTable <- semanticStage input $ makeSymtab ast
+    semanticStage input $ checkProgram symbolTable ast

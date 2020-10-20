@@ -14,6 +14,7 @@
 module Scanner where
 
 import Data.Text (pack, unpack, replace)
+import ErrorHandling (fancyErrorMessage)
 }
 
 %wrapper "monadUserState"
@@ -112,21 +113,6 @@ alexInitUserState = AlexUserState ""
 setOriginalInput :: String -> Alex ()
 setOriginalInput = alexSetUserState . AlexUserState
 
--- Get the text on line linenum from content
-lineContent :: String -> Int -> String
-lineContent content linenum = lines content !! linenum
-
--- Produce a "nice" error message pointing to the error, inspired by clang/gcc.
--- Special case to handle end-of-file errors (the -1's are only produced by
--- alexEOF).
-fancyErrorMessage :: AlexPosn -> String -> String -> String
-fancyErrorMessage (AlexPn (-1) (-1) (-1)) _ msg
-    = "At end of input: error: " ++ msg
-fancyErrorMessage (AlexPn _ row col) source msg
-    = "Line " ++ (show row) ++ " column " ++ (show col) ++ ": error: " ++ msg ++
-        "\n\n" ++ (lineContent source (row - 1)) ++
-        "\n" ++ (take (col - 1) (repeat ' ')) ++ "^ error here"
-        
 -- Alex insists on hardcoding a call from alexMonadScan to alexError with no
 -- way to intercept it, so we give our own alexMonadScan that calls our own
 -- error function (this function basically copied from the standard alex
@@ -150,7 +136,8 @@ alexMonadScan' = do
 -- Called on error, both by alexMonadScan' and the Happy parser.
 alexError' :: AlexPosn -> String -> Alex a
 alexError' p msg = Alex (\s -> let source = original . alex_ust $ s
-                               in Left $ fancyErrorMessage p source msg)
+                                   (AlexPn _ row col) = p
+                               in Left $ fancyErrorMessage (row, col) source msg)
 
 -- Main entry point for scanner.
 scan :: String -> Alex a -> Either String a

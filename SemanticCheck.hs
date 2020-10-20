@@ -4,18 +4,18 @@ import Control.Monad
 import qualified Data.Map.Strict as Map
 import qualified AST
 import SymbolTable
-import SemanticErrors
+import ErrorHandling
 
 type Result a = Either SemanticError a
-
+    {-
 checkProgram :: SymbolTable -> AST.Program -> Either String ()
 checkProgram symtab program
   = case checkProgram' symtab program of
             Left e -> Left (show e)
             Right _ -> Right ()
-
-checkProgram' :: SymbolTable -> AST.Program -> Result ()
-checkProgram' symtab program@(AST.Program _ _ procs) = do
+-}
+checkProgram :: SymbolTable -> AST.Program -> Result ()
+checkProgram symtab program@(AST.Program _ _ procs) = do
     mapM (checkProcedure symtab) procs
     checkMainProcedure symtab
 

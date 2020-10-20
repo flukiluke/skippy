@@ -16,7 +16,7 @@ import Data.List (sortBy)
 import Data.Ord (comparing)
 import qualified Data.Map.Strict as Map
 import qualified AST
-import SemanticErrors
+import ErrorHandling
 
 type ProcSig = [RooType]
 
@@ -53,9 +53,9 @@ type SymTabMonad = ExceptT SemanticError (State SymbolTable)
 emptySymTab :: SymbolTable
 emptySymTab = SymbolTable Map.empty Map.empty
 
-symtab :: AST.Program -> Either String SymbolTable
-symtab program = case runState (runExceptT (stProgram program)) emptySymTab of
-                   (Left e, _) -> Left . show $ e
+makeSymtab :: AST.Program -> Either SemanticError SymbolTable
+makeSymtab program = case runState (runExceptT (stProgram program)) emptySymTab of
+                   (Left e, _) -> Left e
                    (Right _, s) -> Right s
 
 getProc :: SymbolTable -> String -> Procedure
