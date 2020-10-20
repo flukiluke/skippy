@@ -21,7 +21,7 @@ import Parser (parse)
 import SymbolTable (makeSymtab)
 import SemanticCheck (checkProgram)
 import ErrorHandling (semanticError, SemanticError)
--- import CodeGen (generateMachineCode)
+import CodeGen (generateMachineCode)
 
 main :: IO ()
 main
@@ -30,7 +30,7 @@ main
       input <- readFile . last $ args
       case compile input of
         Left e -> putStrLn e
-        Right () -> putStrLn "OK"
+        Right code -> mapM_ putStrLn code
 
 -- A semantic stage is one that can produce a SemanticError
 semanticStage :: String -> Either SemanticError a -> Either String a
@@ -39,8 +39,9 @@ semanticStage input result
       Left e -> Left $ semanticError e input
       Right s -> Right s
 
-compile :: String -> Either String ()
+compile :: String -> Either String [String]
 compile input = do
     ast <- scan input parse
     symbolTable <- semanticStage input $ makeSymtab ast
     semanticStage input $ checkProgram symbolTable ast
+    return $ map show $ generateMachineCode symbolTable ast

@@ -5,15 +5,16 @@
 
 module CodeGen where
 
-import AST
+import qualified AST as AST
 import SymbolTable
+import SemanticCheck (exprType)
 import qualified Data.Map.Lazy as Map
 import Data.List (intercalate)
 
 data OzInstruction
     = OzCall String
     | OzLabel String
-    | OzPrint TypeName
+    | OzPrint AST.TypeName
     | OzHalt
     | OzPushStackFrame Int
     | OzPopStackFrame Int
@@ -21,12 +22,12 @@ data OzInstruction
     | OzStoreIndirect Int Int
     | OzLoad Int Int
     | OzLoadIndirect Int Int
-    | OzIntConst Int Integer
+    | OzIntConst Int Int
     | OzBoolConst Int Bool
     | OzStringConst Int String
     | OzReturn
-    | OzBinOp BinOp Int Int Int
-    | OzUnaryOp PreOp Int Int
+    | OzBinOp AST.BinOp Int Int Int
+    | OzUnaryOp AST.PreOp Int Int
     | OzCallBuiltin String
     | OzLoadAddress Int Int
     | OzBranchOnFalse Int String
@@ -38,8 +39,8 @@ instance Show OzInstruction where
     show (OzLabel l) = l ++ ":"
     show (OzPrint t) = "call_builtin " ++ printBuiltin
         where printBuiltin = case t of
-                                 BoolType -> "print_bool"
-                                 IntType  -> "print_int"
+                                 AST.BoolType -> "print_bool"
+                                 AST.IntType  -> "print_int"
                                  _ -> "print_string"
     show OzHalt = "halt"
     show (OzPushStackFrame x) = "push_stack_frame " ++ show x
@@ -58,22 +59,22 @@ instance Show OzInstruction where
     show OzReturn = "return"
     show (OzBinOp op target left right) = getOpStr op ++ " r" ++ show target
         ++ ", r" ++ show left ++ ", r" ++ show right
-            where getOpStr (Op_or _)  = "or"
-                  getOpStr (Op_and _) = "and"
-                  getOpStr Op_eq      = "cmp_eq_int"
-                  getOpStr Op_neq     = "cmp_ne_int"
-                  getOpStr Op_lt      = "cmp_lt_int"
-                  getOpStr Op_lteq    = "cmp_le_int"
-                  getOpStr Op_gt      = "cmp_gt_int"
-                  getOpStr Op_gteq    = "cmp_ge_int"
-                  getOpStr Op_plus    = "add_int"
-                  getOpStr Op_minus   = "sub_int"
-                  getOpStr Op_mult    = "mul_int"
-                  getOpStr Op_divide  = "div_int"
+            where getOpStr (AST.Op_or)    = "or"
+                  getOpStr (AST.Op_and)   = "and"
+                  getOpStr AST.Op_eq      = "cmp_eq_int"
+                  getOpStr AST.Op_neq     = "cmp_ne_int"
+                  getOpStr AST.Op_lt      = "cmp_lt_int"
+                  getOpStr AST.Op_lteq    = "cmp_le_int"
+                  getOpStr AST.Op_gt      = "cmp_gt_int"
+                  getOpStr AST.Op_gteq    = "cmp_ge_int"
+                  getOpStr AST.Op_plus    = "add_int"
+                  getOpStr AST.Op_minus   = "sub_int"
+                  getOpStr AST.Op_mult    = "mul_int"
+                  getOpStr AST.Op_divide  = "div_int"
     show (OzUnaryOp op target tmp) = getOpStr op ++ " r" ++ show target
         ++ ", r" ++ show tmp
-            where getOpStr Op_negate = "neg_int"
-                  getOpStr Op_not    = "not"
+            where getOpStr AST.Op_negate = "neg_int"
+                  getOpStr AST.Op_not    = "not"
     show (OzCallBuiltin f) = "call_builtin " ++ f
     show (OzLoadAddress target from) = "load_address r" ++ show target
         ++ ", " ++ show from
@@ -83,171 +84,134 @@ instance Show OzInstruction where
     show (OzSubOffset target left right) = "sub_offset r" ++ show target
         ++ ", r" ++ show left ++ ", r" ++ show right
 
-generateMachineCode :: Program -> [OzInstruction]
-generateMachineCode prog@(Program _ _ procs) =
+getLabel :: AST.Posn -> String
+getLabel (x, y) = "label_" ++ show x ++ "_" ++ show y
+
+generateMachineCode :: SymbolTable -> AST.Program -> [OzInstruction]
+generateMachineCode table prog@(AST.Program _ _ procs) =
     [ OzCall "main"
       , OzHalt
-    ] ++ concatMap (\x -> generateProcCode x symbolTable initialRegisters) procs
-        where symbolTable = getSymbolTable prog
+    ] ++ concatMap (\x -> generateProcCode table x initialRegisters) procs
 
-generateProcCode :: Proc -> SymbolTable -> [Int] -> [OzInstruction]
-generateProcCode (Proc ident ps _ stmts) global_table rs =
+generateProcCode :: SymbolTable -> AST.Proc -> [Int] -> [OzInstruction]
+generateProcCode table (AST.Proc _ ident ps _ stmts) rs =
     -- prelude
     [ OzLabel ident
     , OzPushStackFrame stack_size
     ]
     -- load parameters into slots
-    ++ (if length ps > 0 then
-                         map (\x -> OzStore x x) [0.. length ps - 1]
+    ++ (if length ps > 0 then map (\x -> OzStore x x) [0.. length ps - 1]
     else [])
     -- initialise variables
     ++ (if stack_size - length ps > 0 then do
         [OzIntConst 0 0] ++ (map (\x -> OzStore x 0) $ take stack_size [0..])
     else [])
     -- get statement code
-    ++ (concatMap (generateStmtCode global_table table) stmts)
+    ++ (concatMap (generateStmtCode table locals) stmts)
     -- cleanup
     ++ [OzPopStackFrame stack_size, OzReturn]
-        where (ProcSymbol table stack_size) = findSymbol global_table ident
+        where (Procedure _ locals stack_size) = getProc table ident
               labels = [0..]
 
--- placeholder, idk if this will become part of the symbol table?
-getExprType :: Expr -> TypeName
-getExprType (BoolLit _) = BoolType
-getExprType (IntLit _) = IntType
-getExprType (StrLit _) = AliasType ""
-getExprType _ = IntType
-
-getLvalAddress :: LValue -> SymbolTable -> [Int] -> [OzInstruction]
-getLvalAddress (LId ident) table (r:_) =
+getLvalAddress :: Locals -> AST.LValue -> [Int] -> [OzInstruction]
+getLvalAddress locals (AST.LId _ ident) (r:_) =
     [load_instr r slot]
-    where (VarSymbol _ is_ref _ slot) = findSymbol table ident
+    where (Variable _ is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
 
-getLvalAddress (LArray ident expr) table (addr_r:offset_r:rs) =
+getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:rs) =
     [load_instr addr_r slot]
-    ++ generateExprCode expr table (offset_r:rs)
+    ++ generateExprCode locals expr (offset_r:rs)
     ++ [OzSubOffset addr_r addr_r offset_r]
-    where (VarSymbol _ is_ref _ slot) = findSymbol table ident
+    where (Variable _ is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
 
 -- expression, table, registers available for use
-generateExprCode :: Expr -> SymbolTable -> [Int] -> [OzInstruction]
-generateExprCode (Lval lval) table rs@(val_r:_) =
-    getLvalAddress lval table rs
+generateExprCode :: Locals -> AST.Expr -> [Int] -> [OzInstruction]
+generateExprCode table (AST.Lval _ lval) rs@(val_r:_) =
+    getLvalAddress table lval rs
     ++ [OzLoadIndirect val_r val_r]
 
-generateExprCode (BoolLit b) _ (register:_) = [OzBoolConst register b]
-generateExprCode (IntLit int) _ (register:_) = [OzIntConst register int]
-generateExprCode (StrLit str) _ (register:_) = [OzStringConst register str]
+generateExprCode _ (AST.BoolLit _ b) (register:_) = [OzBoolConst register b]
+generateExprCode _ (AST.IntLit _ int) (register:_) = [OzIntConst register int]
+generateExprCode _ (AST.StrLit _ str) (register:_) = [OzStringConst register str]
 
--- shortcircuit boolean operators
--- e.g. x >= 0 and a[x] > 1
-generateExprCode (BinOpExpr op@(Op_or label) expr1 expr2)
-        table (result_r:left_r:right_r:rs) =
-    (generateExprCode expr1 table (left_r:rs))
-    -- if left is false, evaluate the right operand
-    ++ [OzBranchOnFalse left_r label_right]
-    -- otherwise, set the result to true and don't evaluate the right operand
-    ++ [OzBoolConst result_r True, OzBranchUncond label_skip, OzLabel label_right]
-    ++ (generateExprCode expr2 table (right_r:rs))
-    ++ [OzBinOp op result_r left_r right_r, OzLabel label_skip]
-        where label_skip = "label_" ++ label ++ "_skip"
-              label_right = "label_" ++ label ++ "_right"
+generateExprCode table (AST.BinOpExpr _ op expr1 expr2) (result_r:right_r:rs) =
+    (generateExprCode table expr1 (result_r:rs))
+    ++ (generateExprCode table expr2 (right_r:rs))
+    ++ [OzBinOp op result_r result_r right_r]
 
-generateExprCode (BinOpExpr op@(Op_and label) expr1 expr2)
-        table (result_r:left_r:right_r:rs) =
-    (generateExprCode expr1 table (left_r:rs))
-    -- if left is true, evaluate the right operand
-    ++ [OzUnaryOp Op_not left_r left_r, OzBranchOnFalse left_r label_right]
-    -- otherwise, set the result to false and don't evaluate the right operand
-    ++ [OzBoolConst result_r False , OzBranchUncond label_skip
-       , OzLabel label_right, OzUnaryOp Op_not left_r left_r]
-    ++ (generateExprCode expr2 table (right_r:rs))
-    ++ [OzBinOp op result_r left_r right_r, OzLabel label_skip]
-        where label_skip = "label_" ++ label ++ "_skip"
-              label_right = "label_" ++ label ++ "_right"
-
-generateExprCode (BinOpExpr op expr1 expr2) table (result_r:left_r:right_r:rs) =
-    (generateExprCode expr1 table (left_r:rs))
-    ++ (generateExprCode expr2 table (right_r:rs))
-    ++ [OzBinOp op result_r left_r right_r]
-
-generateExprCode (PreOpExpr op expr) table (result_r:tmp:rs) =
-    generateExprCode expr table (tmp:rs) ++ [OzUnaryOp op result_r tmp]
+generateExprCode table (AST.PreOpExpr _ op expr) (result_r:tmp:rs) =
+    generateExprCode table expr (tmp:rs) ++ [OzUnaryOp op result_r tmp]
 
 initialRegisters :: [Int]
 initialRegisters = take 1024 [0..]
 
-generateStmtCode :: SymbolTable -> SymbolTable -> Stmt -> [OzInstruction]
-generateStmtCode parent table (Assign lval expr) =
-    generateExprCode expr table (val_r:rs)
+generateStmtCode :: SymbolTable -> Locals -> AST.Stmt -> [OzInstruction]
+generateStmtCode table locals (AST.Assign _ lval expr) =
+    generateExprCode locals expr (val_r:rs)
     -- get address
-    ++ getLvalAddress lval table (addr_r:rs)
+    ++ getLvalAddress locals lval (addr_r:rs)
     ++ [OzStoreIndirect addr_r val_r]
     where (val_r:addr_r:rs) = initialRegisters
-    
 
-generateStmtCode _ table (Read lval) =
+generateStmtCode _ locals (AST.Read pos lval) =
     [OzCallBuiltin readBuiltin]
-    ++ getLvalAddress lval table (addr_r:rs)
+    ++ getLvalAddress locals lval (addr_r:rs)
     ++ [OzStoreIndirect addr_r val_r]
     where (val_r:addr_r:rs) = initialRegisters
-          readBuiltin =  case (getExprType (Lval lval)) of
-                            BoolType -> "read_bool"
-                            IntType  -> "read_int"
-                            _ -> "error"
+          readBuiltin = case (exprType locals (AST.Lval pos lval)) of
+                          (Right BoolType) -> "read_bool"
+                          (Right IntType)  -> "read_int"
+                          _                -> "error"
 
-
-generateStmtCode _ table (Write expr) =
-    (generateExprCode expr table initialRegisters)
+generateStmtCode _ locals (AST.Write _ expr) =
+    (generateExprCode locals expr initialRegisters)
     ++ [OzCallBuiltin printBuiltin]
-    where printBuiltin =  case (getExprType expr) of
-                            BoolType -> "print_bool"
-                            IntType  -> "print_int"
-                            _ -> "print_string"
+    where printBuiltin = case (exprType locals expr) of
+                           (Right BoolType) -> "print_bool"
+                           (Right IntType)  -> "print_int"
+                           _                -> "print_string"
 
-
-generateStmtCode _ table (WriteLn expr) =
-    (generateExprCode expr table initialRegisters)
+generateStmtCode _ locals (AST.WriteLn _ expr) =
+    (generateExprCode locals expr initialRegisters)
     ++ [OzCallBuiltin printBuiltin, OzCallBuiltin "print_newline"]
-    where printBuiltin =  case (getExprType expr) of
-                            BoolType -> "print_bool"
-                            IntType  -> "print_int"
-                            _ -> "print_string"
+    where printBuiltin =  case (exprType locals expr) of
+                           (Right BoolType) -> "print_bool"
+                           (Right IntType)  -> "print_int"
+                           _                -> "print_string"
 
-generateStmtCode global_table table (Call ident exprs) =
+generateStmtCode table locals (AST.Call _ ident exprs) =
     -- prepare arguments to be passed
-    (concatMap prepareParam args) ++ [OzCall ident]
-    where (ProcSymbol arg_map _) = findSymbol global_table ident
-          args = [x | (_, x@(VarSymbol _ _ pos _)) <- Map.toList arg_map, pos /= -1]
-          prepareParam (VarSymbol _ True _ param_slot) = do
+    (concatMap prepareParam (zip [1..] args)) ++ [OzCall ident]
+    where (Procedure args _ _) = getProc table ident
+          prepareParam (arg_idx, Variable _ True _) = do
             -- passed in as a ref
             -- is the lvalue in the current context also a ref?
-            (Lval (LId lval)) <- return $ exprs !! param_slot
-            (VarSymbol _ already_ref _ slot) <- return $ findSymbol table lval
-            return $ if already_ref then OzLoad param_slot slot else OzLoadAddress param_slot slot
-          prepareParam x@(VarSymbol _ _ r slot) = do
+            (AST.Lval _ (AST.LId _ lval)) <- return $ exprs !! arg_idx
+            (Variable _ already_ref slot) <- return $ getLocal locals lval
+            return $ if already_ref then OzLoad arg_idx slot else OzLoadAddress arg_idx slot
+          prepareParam x@(arg_idx, _) = do
               -- isn't a ref
-              generateExprCode (exprs !! r) table $ r:spareRegisters
+              generateExprCode locals (exprs !! arg_idx) $ arg_idx:spareRegisters
           spareRegisters = drop numParams initialRegisters
           numParams = length exprs
 
+generateStmtCode table locals (AST.If pos expr stmts else_stmts) =
+    (generateExprCode locals expr initialRegisters)
+    ++ [OzBranchOnFalse 0 $ label ++ "_0"]
+    ++ (concatMap (generateStmtCode table locals) stmts)
+    ++ [OzBranchUncond $ label ++ "_1",
+    OzLabel $ label ++ "_0"]
+    ++ (concatMap (generateStmtCode table locals) else_stmts)
+    ++ [OzLabel $ label ++ "_1"]
+        where label = getLabel pos
 
-generateStmtCode global_table table (If expr stmts else_stmts label) =
-    (generateExprCode expr table initialRegisters)
-    ++ [OzBranchOnFalse 0 $ "label_" ++ label ++ "_0"]
-    ++ (concatMap (generateStmtCode global_table table) stmts)
-    ++ [OzBranchUncond $ "label_" ++ label ++ "_1",
-    OzLabel $ "label_" ++ label ++ "_0"]
-    ++ (concatMap (generateStmtCode global_table table) else_stmts)
-    ++ [OzLabel $ "label_" ++ label ++ "_1"]
-
-
-generateStmtCode global_table table (While expr stmts label) =
-    [OzLabel $ "label_" ++ label ++ "_0"]
-    ++ (generateExprCode expr table initialRegisters)
-    ++ [OzBranchOnFalse 0 $ "label_" ++ label ++ "_1"]
-    ++ (concatMap (generateStmtCode global_table table) stmts)
-    ++ [OzBranchUncond $ "label_" ++ label ++ "_0",
-    OzLabel $ "label_" ++ label ++ "_1"]
+generateStmtCode table locals (AST.While pos expr stmts) =
+    [OzLabel $ label ++ "_0"]
+    ++ (generateExprCode locals expr initialRegisters)
+    ++ [OzBranchOnFalse 0 $ label ++ "_1"]
+    ++ (concatMap (generateStmtCode table locals) stmts)
+    ++ [OzBranchUncond $ label ++ "_0",
+    OzLabel $ label ++ "_1"]
+        where label = getLabel pos
