@@ -16,7 +16,7 @@ checkProgram symtab program@(AST.Program _ _ procs) = case do
             Right _ -> Right ()
 
 checkProcedure :: SymbolTable -> AST.Proc -> Result ()
-checkProcedure symtab (AST.Proc name _ _ stmts) = do
+checkProcedure symtab (AST.Proc _ name _ _ stmts) = do
     mapM_ (checkStmt symtab locals) stmts
         where
             locals = procSymTab $ getProc symtab name
@@ -28,76 +28,77 @@ checkStmt symtab locals (AST.Assign posn lvalue expr) = do
     unless (leftType == rightType) $
         Left (TypeMismatch posn (show leftType) (show rightType))
 
-checkStmt symtab locals (AST.Read lvalue) = lvalType symtab locals lvalue >> return ()
+checkStmt symtab locals (AST.Read _ lvalue)
+  = lvalType symtab locals lvalue >> return ()
 
-checkStmt symtab locals (AST.Write expr)
+checkStmt symtab locals (AST.Write _ expr)
   = exprType symtab locals expr >> return ()
 
-checkStmt symtab locals (AST.WriteLn expr)
+checkStmt symtab locals (AST.WriteLn _ expr)
   = exprType symtab locals expr >> return ()
 
-checkStmt symtab locals (AST.Call name args) = do
-    proc <- lookup' name (procedures symtab) $ UndeclaredSymbol name 0 0
+checkStmt symtab locals (AST.Call posn name args) = do
+    proc <- lookup' name (procedures symtab) $ UndeclaredSymbol posn name
     zipWithM_ (checkArg symtab locals) (procSig proc) args
 
-checkStmt symtab locals (AST.If expr trues falses) = do
+checkStmt symtab locals (AST.If posn expr trues falses) = do
     condType <- exprType symtab locals expr
     unless (condType == BoolType) $
-        Left (TypeMismatch "boolean" (show condType) 0 0)
+        Left (TypeMismatch posn "boolean" (show condType))
     mapM (checkStmt symtab locals) trues
     mapM_ (checkStmt symtab locals) falses
 
-checkStmt symtab locals (AST.While expr stmts) = do
+checkStmt symtab locals (AST.While posn expr stmts) = do
     condType <- exprType symtab locals expr
     unless (condType == BoolType) $
-        Left (TypeMismatch "boolean" (show condType) 0 0)
+        Left (TypeMismatch posn "boolean" (show condType))
     mapM_ (checkStmt symtab locals) stmts
 
 checkArg :: SymbolTable -> Locals -> Variable -> AST.Expr -> Result ()
 checkArg symtab locals expected passed = do
     when (varByRef expected && not (isLval passed)) $
-        Left (NotReference 0 0)
+        Left (NotReference $ AST.exprPosn passed)
     let expectedType = varType expected
     passedType <- exprType symtab locals passed
     unless (expectedType == passedType) $
-        Left (TypeMismatch (show expectedType) (show passedType) 0 0)
+        Left (TypeMismatch (AST.exprPosn passed) (show expectedType) (show passedType))
 
 exprType :: SymbolTable -> Locals -> AST.Expr -> Result RooType
-exprType symtab locals (AST.Lval lval) = lvalType symtab locals lval
+exprType symtab locals (AST.Lval _ lval) = lvalType symtab locals lval
 exprType _ locals (AST.BoolLit _ _) = Right BoolType
-exprType _ locals (AST.IntLit _) = Right IntType
-exprType _ locals (AST.StrLit _) = Right StringType
-exprType symtab locals (AST.BinOpExpr AST.Op_or l r)
+exprType _ locals (AST.IntLit _ _) = Right IntType
+exprType _ locals (AST.StrLit _ _) = Right StringType
+exprType symtab locals (AST.BinOpExpr _ AST.Op_or l r)
   = logicalBinOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_and l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_and l r)
   = logicalBinOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_eq l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_eq l r)
   = comparisonOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_neq l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_neq l r)
   = comparisonOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_lt l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_lt l r)
   = comparisonOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_lteq l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_lteq l r)
   = comparisonOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_gt l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_gt l r)
   = comparisonOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_gteq l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_gteq l r)
   = comparisonOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_plus l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_plus l r)
   = mathBinOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_minus l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_minus l r)
   = mathBinOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_mult l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_mult l r)
   = mathBinOpType symtab locals l r
-exprType symtab locals (AST.BinOpExpr AST.Op_divide l r)
+exprType symtab locals (AST.BinOpExpr _ AST.Op_divide l r)
   = mathBinOpType symtab locals l r
-exprType symtab locals (AST.PreOpExpr AST.Op_not r)
+exprType symtab locals (AST.PreOpExpr _ AST.Op_not r)
   = prefixOpType BoolType symtab locals r
-exprType symtab locals (AST.PreOpExpr AST.Op_negate r)
+exprType symtab locals (AST.PreOpExpr _ AST.Op_negate r)
   = prefixOpType IntType symtab locals r
 
 isLval :: AST.Expr -> Bool
-isLval (AST.Lval _) = True
+isLval (AST.Lval _ _) = True
 isLval _ = False
 
 isRecordType :: RooType -> Bool
@@ -111,29 +112,29 @@ lookup' key map err
       Nothing -> Left $ err
 
 lvalType :: SymbolTable -> Locals -> AST.LValue -> Result RooType
-lvalType symtab locals (AST.LId name) = do
-    lval <- lookup' name locals $ UndeclaredSymbol name 0 0
+lvalType symtab locals (AST.LId posn name) = do
+    lval <- lookup' name locals $ UndeclaredSymbol posn name
     return $ varType lval
 
-lvalType symtab locals (AST.LField recName fieldName) = do
-    record <- lookup' recName locals $ UndeclaredSymbol recName 0 0
+lvalType symtab locals (AST.LField posn recName fieldName) = do
+    record <- lookup' recName locals $ UndeclaredSymbol posn recName
     let r@(RecordType fields) = varType record
     unless (isRecordType r) $
-        Left (UnexpectedField 0 0)
-    fieldDec <- lookup' fieldName fields $ UndeclaredSymbol fieldName 0 0
+        Left (UnexpectedField posn)
+    fieldDec <- lookup' fieldName fields $ UndeclaredSymbol posn fieldName
     let (_, fieldType) = fieldDec
     return fieldType
 
-lvalType symtab locals (AST.LArray arrayName index) = do
-    array <- lookup' arrayName locals $ UndeclaredSymbol arrayName 0 0
+lvalType symtab locals (AST.LArray posn arrayName index) = do
+    array <- lookup' arrayName locals $ UndeclaredSymbol posn arrayName
     let (ArrayType arrayType _) = varType array
     return arrayType
 
-lvalType symtab locals (AST.LArrayField arrayName index fieldName) = do
-    array <- lookup' arrayName locals $ UndeclaredSymbol arrayName 0 0
+lvalType symtab locals (AST.LArrayField posn arrayName index fieldName) = do
+    array <- lookup' arrayName locals $ UndeclaredSymbol posn arrayName
     let (ArrayType arrayType _) = varType array
     unless (isRecordType arrayType) $
-        Left (UnexpectedField 0 0)
+        Left (UnexpectedField posn)
     return IntType
 
 logicalBinOpType :: SymbolTable -> Locals -> AST.Expr -> AST.Expr -> Result RooType
@@ -147,16 +148,16 @@ uniformBinOpType expectedType symtab locals l r = do
     leftType <- exprType symtab locals l
     rightType <- exprType symtab locals r
     unless (leftType == expectedType) $
-        Left (TypeMismatch (show expectedType) (show leftType) 0 0)
+        Left (TypeMismatch (AST.exprPosn l) (show expectedType) (show leftType))
     unless (rightType == BoolType) $
-        Left (TypeMismatch (show expectedType) (show rightType) 0 0)
+        Left (TypeMismatch (AST.exprPosn r) (show expectedType) (show rightType))
     return expectedType
 
 prefixOpType :: RooType -> SymbolTable -> Locals -> AST.Expr -> Result RooType
 prefixOpType expectedType symtab locals r = do
     rightType <- exprType symtab locals r
     unless (rightType == expectedType) $
-        Left (TypeMismatch (show expectedType) (show rightType) 0 0)
+        Left (TypeMismatch (AST.exprPosn r) (show expectedType) (show rightType))
     return expectedType
 
 comparisonOpType :: SymbolTable -> Locals -> AST.Expr -> AST.Expr -> Result RooType
@@ -164,8 +165,8 @@ comparisonOpType symtab locals l r = do
     leftType <- exprType symtab locals l
     rightType <- exprType symtab locals r
     unless (leftType == rightType) $
-        Left (TypeMismatch (show leftType) (show rightType) 0 0)
+        Left (TypeMismatch (AST.exprPosn l) (show leftType) (show rightType))
     unless (leftType == BoolType || leftType == IntType) $
-        Left (TypeMismatch "boolean or integer" (show leftType) 0 0)
+        Left (TypeMismatch (AST.exprPosn r) "boolean or integer" (show leftType))
     return BoolType
 

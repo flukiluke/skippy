@@ -91,12 +91,17 @@ data LValue
     deriving (Show, Eq)
 
 data Expr
-    = Lval Posn LValue
-    | BoolLit Posn Bool
-    | IntLit Posn Int
-    | StrLit Posn String
-    | BinOpExpr Posn BinOp Expr Expr
-    | PreOpExpr Posn PreOp Expr
+    = Lval { exprPosn :: Posn, exprLValue :: LValue }
+    | BoolLit { exprPosn :: Posn, exprBool :: Bool }
+    | IntLit { exprPosn :: Posn, exprInt :: Int }
+    | StrLit { exprPosn :: Posn, exprStr :: String }
+    | BinOpExpr { exprPosn :: Posn,
+                exprBinOp :: BinOp,
+                exprLeft :: Expr,
+                exprRight :: Expr }
+    | PreOpExpr { exprPosn :: Posn,
+                exprPreOp :: PreOp,
+                exprRight :: Expr }
     deriving (Show, Eq)
 
 -- Prefix operators

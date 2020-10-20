@@ -73,19 +73,19 @@ stProgram (AST.Program recordDecs arrayDecs procs) = do
     mapM_ stProcedure procs
 
 stRecord :: AST.RecordDec -> SymTabMonad ()
-stRecord (AST.RecordDec name fieldDecs) = do
+stRecord (AST.RecordDec posn name fieldDecs) = do
     currentSymTab <- get
     types <- gets typeAliases
     fields <- stFields fieldDecs
-    when (name `Map.member` types) (throwError $ DuplicateDefinition 0 0)
+    when (name `Map.member` types) (throwError $ DuplicateDefinition posn)
     modify (\s -> s { typeAliases = Map.insert name (RecordType fields) types })
 
 stFields :: [AST.FieldDec] -> SymTabMonad (Map.Map String (Int, RooType))
 stFields fields
-  = foldM (\m (posn, (AST.FieldDec name rooType)) ->
+  = foldM (\m (index, (AST.FieldDec posn name rooType)) ->
       if name `Map.member` m
-         then throwError (DuplicateDefinition 0 0)
-         else return (Map.insert name (posn, fieldType rooType) m)
+         then throwError (DuplicateDefinition posn)
+         else return (Map.insert name (index, fieldType rooType) m)
     )
     Map.empty
     $ zip [0..] fields
@@ -98,30 +98,30 @@ fieldType AST.IntType = IntType
 fieldType _ = error "fieldType: Field is not integer or boolean"
 
 stArray :: AST.ArrayDec -> SymTabMonad ()
-stArray (AST.ArrayDec name rooType size) = do
-    when (size < 1) (throwError $ ArrayTooSmall 0 0)
+stArray (AST.ArrayDec posn name rooType size) = do
+    when (size < 1) (throwError $ ArrayTooSmall posn)
     typeAliases' <- gets typeAliases
-    arrayType' <- arrayType rooType
-    when (name `Map.member` typeAliases') (throwError $ DuplicateDefinition 0 0)
+    arrayType' <- arrayType posn rooType
+    when (name `Map.member` typeAliases') (throwError $ DuplicateDefinition posn)
     modify (\s -> s {
         typeAliases = Map.insert name (arrayType' size) typeAliases' })
 
 -- Note: partially applied data constructor so size can be added by caller
-arrayType :: AST.TypeName -> SymTabMonad (Int -> RooType)
-arrayType AST.BoolType = return $ ArrayType BoolType
-arrayType AST.IntType = return $ ArrayType IntType
-arrayType (AST.AliasType name) = do
+arrayType :: Posn -> AST.TypeName -> SymTabMonad (Int -> RooType)
+arrayType _ AST.BoolType = return $ ArrayType BoolType
+arrayType _ AST.IntType = return $ ArrayType IntType
+arrayType posn (AST.AliasType name) = do
     typeAliases' <- gets typeAliases
     case Map.lookup name typeAliases' of
         Just r@(RecordType _) -> return $ ArrayType r
-        _ -> throwError $ BadArrayType 0 0
+        _ -> throwError $ BadArrayType posn
 
 stProcedure :: AST.Proc -> SymTabMonad ()
-stProcedure (AST.Proc name parameters locals _) = do
+stProcedure (AST.Proc posn name parameters locals _) = do
     procedures' <- gets procedures
     parameters' <- stParameters parameters
     locals' <- stLocals locals parameters'
-    when (name `Map.member` procedures') (throwError $ DuplicateDefinition 0 0)
+    when (name `Map.member` procedures') (throwError $ DuplicateDefinition posn)
     let procedure = Procedure {
         procSig = sortBy (comparing varStackSlot) . Map.elems $ parameters',
         procSymTab = locals',
@@ -148,39 +148,43 @@ stParameters :: [AST.Parameter] -> SymTabMonad (Map.Map String Variable)
 stParameters parameters
   = foldM checkAndInsert' Map.empty $ parameters
       where
-          checkAndInsert' m p@(AST.RefParam name rooType)
-            = checkAndInsert True m name rooType
-          checkAndInsert' m p@(AST.ValParam name rooType)
-            = checkAndInsert False m name rooType
-          checkAndInsert byRef m name rooType = do
-              paramType' <- paramType rooType
+          checkAndInsert' m p@(AST.RefParam posn name rooType)
+            = checkAndInsert True posn m name rooType
+          checkAndInsert' m p@(AST.ValParam posn name rooType)
+            = checkAndInsert False posn m name rooType
+          checkAndInsert byRef posn m name rooType = do
+              paramType' <- paramType posn rooType
               if name `Map.member` m
-                 then throwError (DuplicateDefinition 0 0)
+                 then throwError (DuplicateDefinition posn)
                  else return (Map.insert name (Variable {
                         varType = paramType',
                         varByRef = byRef,
                         varStackSlot = Map.size m }) m)
 
-paramType :: AST.TypeName -> SymTabMonad (RooType)
-paramType AST.BoolType = return $ BoolType
-paramType AST.IntType = return $ IntType
-paramType (AST.AliasType typeName) = do
+paramType :: Posn -> AST.TypeName -> SymTabMonad (RooType)
+paramType _ AST.BoolType = return $ BoolType
+paramType _ AST.IntType = return $ IntType
+paramType posn (AST.AliasType typeName) = do
     typeAliases' <- gets typeAliases
     let l = Map.lookup typeName typeAliases'
      in case l of
           Just t -> return t
-          Nothing -> throwError $ BadVariableType 0 0
+          Nothing -> throwError $ BadVariableType posn
 
+-- Convert AST list of procedure local variables to symtab map.
+-- This is slightly complicated by AST.VarDec having a list of AST.Ident
+-- that are all to have the same type. We need to expand each element into
+-- a separate Variable.
 stLocals :: [AST.VarDec] -> (Map.Map String Variable) -> SymTabMonad Locals
 stLocals locals currentVariables
   = foldM checkAndInsert currentVariables $ expandVarDecs locals
       where
           expandVarDecs decs
-            = [(v, AST.varDecType d) | d <- decs, v <- (AST.varDecNames d)]
-          checkAndInsert m (name, rooType) = do
-              varType' <- paramType rooType
+            = [(v, AST.varPosn d, AST.varDecType d) | d <- decs, v <- (AST.varDecNames d)]
+          checkAndInsert m (name, posn, rooType) = do
+              varType' <- paramType posn rooType
               if name `Map.member` m
-                 then throwError (DuplicateDefinition 0 0)
+                 then throwError (DuplicateDefinition posn)
                  else return (Map.insert name (Variable {
                         varType = varType',
                         varByRef = False,

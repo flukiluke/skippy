@@ -80,7 +80,7 @@ import AST
     ';'             { (_, Symbol ";") }
     ','             { (_, Symbol ",") }
     -- Everything else
-    id              { (_, Identifier $$) }
+    id              { (_, Identifier _) }
 
 -- In order of precedence
 %left or
@@ -106,31 +106,31 @@ RecordDecs  : {- empty -}                                   { $$ = [] }
             | RecordDecs RecordDec                          { $$ = $2 : $1 }
 
 RecordDec   : record '{' FieldDecs '}' id ';'
-                { $$ = RecordDec (getPosn $1) $5 (reverse $3) }
+                { $$ = RecordDec (getPosn $1) (unIdent $5) (reverse $3) }
 
 FieldDecs   : FieldDec                                      { $$ = [$1] }
             | FieldDecs ';' FieldDec                        { $$ = $3 : $1 }
 
 FieldDec    : boolean id
-                { $$ = FieldDec (getPosn $1) $2 BoolType }
+                { $$ = FieldDec (getPosn $1) (unIdent $2) BoolType }
             | integer id
-                { $$ = FieldDec (getPosn $1) $2 IntType }
+                { $$ = FieldDec (getPosn $1) (unIdent $2) IntType }
 
 ArrayDecs   : {- empty -}                                   { $$ = [] }
             | ArrayDecs ArrayDec                            { $$ = $2 : $1 }
 
 ArrayDec    : array '[' integer_lit ']' ArrayType id ';'
-                { $$ = ArrayDec (getPosn $1) $6 $5 (unIntegerLit $3) }
+                { $$ = ArrayDec (getPosn $1) (unIdent $6) $5 (unIntegerLit $3) }
 
 ArrayType   : boolean                                       { $$ = BoolType }
             | integer                                       { $$ = IntType }
-            | id                                            { $$ = (AliasType $1) }
+            | id                                            { $$ = AliasType $ unIdent $1 }
 
 ProcDecs    : ProcDec                                       { $$ = [$1] }
             | ProcDecs ProcDec                              { $$ = $2 : $1 }
 
 ProcDec     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'
-                { $$ = Proc (getPosn $1) $2 (reverse $4) (reverse $6) (reverse $8) }
+                { $$ = Proc (getPosn $1) (unIdent $2) (reverse $4) (reverse $6) (reverse $8) }
 
 Parameters  : {- empty -}                                   { $$ = [] }
             | ParamList                                     { $$ = $1 }
@@ -139,28 +139,28 @@ ParamList   : Parameter                                     { $$ = [$1] }
             | ParamList ',' Parameter                       { $$ = $3 : $1 }
 
 Parameter   : id id
-                { $$ = RefParam (getPosn $1) $2 (AliasType $1) }
+                { $$ = RefParam (getPosn $1) (unIdent $2) (AliasType $ unIdent $1) }
             | boolean id
-                { $$ = RefParam (getPosn $1) $2 BoolType }
+                { $$ = RefParam (getPosn $1) (unIdent $2) BoolType }
             | integer id                          
-                { $$ = RefParam (getPosn $1) $2 IntType }
+                { $$ = RefParam (getPosn $1) (unIdent $2) IntType }
             | boolean val id                      
-                { $$ = ValParam (getPosn $1) $3 BoolType }
+                { $$ = ValParam (getPosn $1) (unIdent $3) BoolType }
             | integer val id                      
-                { $$ = ValParam (getPosn $1) $3 IntType }
+                { $$ = ValParam (getPosn $1) (unIdent $3) IntType }
 
 LocalVarDecs : {- empty -}                        { $$ = [] }
              | LocalVarDecs LocalVarDec           { $$ = $2 : $1 }
 
 LocalVarDec : id LocalVars ';'
-                { $$ = VarDec (getPosn $1) (reverse $2) (AliasType $1) }
+                { $$ = VarDec (getPosn $1) (reverse $2) (AliasType $ unIdent $1) }
             | boolean LocalVars ';'
                 { $$ = VarDec (getPosn $1) (reverse $2) BoolType }
             | integer LocalVars ';'
                 { $$ = VarDec (getPosn $1) (reverse $2) IntType }
 
 LocalVars   : id                                { $$ = [$1] }
-            | LocalVars ',' id                  { $$ = $3 : $1 }
+            | LocalVars ',' id                  { $$ = (unIdent $3) : $1 }
 
 Statements  : Statement                         { $$ = [$1] }
             | Statements Statement              { $$ = $2 : $1 }
@@ -174,7 +174,7 @@ Statement   : Lvalue assign Expr ';'
             | writeln Expr ';'                  
                 { $$ = WriteLn (getPosn $1) $2 }
             | call id '(' Args ')' ';'          
-                { $$ = Call (getPosn $1) $2 (reverse $4) }
+                { $$ = Call (getPosn $1) (unIdent $2) (reverse $4) }
             | if Expr then Statements ElseClause fi
                 { $$ = If (getPosn $1) $2 (reverse $4) $5 }
             | while Expr do Statements od       
@@ -188,17 +188,17 @@ Args        : {- empty -}                       { $$ = [] }
             | Expr                              { $$ = [$1] }
             | Args ',' Expr                     { $$ = $3 : $1 }
 
-Lvalue      : id                                { $$ = LId $$.posn $1
-                                                ; $$.posn = $1.posn
+Lvalue      : id                                { $$ = LId $$.posn (unIdent $1)
+                                                ; $$.posn = getPosn $1
                                                 }
-            | id '.' id                         { $$ = LField $$.posn $1 $3
-                                                ; $$.posn = $1.posn
+            | id '.' id                         { $$ = LField $$.posn (unIdent $1) (unIdent $3)
+                                                ; $$.posn = getPosn $1
                                                 }
-            | id '[' Expr ']'                   { $$ = LArray $$.posn $1 $3
-                                                ; $$.posn = $1.posn
+            | id '[' Expr ']'                   { $$ = LArray $$.posn (unIdent $1) $3
+                                                ; $$.posn = getPosn $1
                                                 }
-            | id '[' Expr ']' '.' id            { $$ = LArrayField $$.posn $1 $3 $6
-                                                ; $$.posn = $1.posn
+            | id '[' Expr ']' '.' id            { $$ = LArrayField $$.posn (unIdent $1) $3 (unIdent $6)
+                                                ; $$.posn = getPosn $1
                                                 }
 
 Expr        : Lvalue                            { $$ = Lval $$.posn $1
@@ -277,9 +277,11 @@ parseError ((p, t), explist)
 lexwrap :: ((AlexPosn, Token) -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 
-unStringLit (_, (StringLit x)) = x
-unIntegerLit (_, (IntegerLit x)) = x
-unBooleanLit (_, (BooleanLit x)) = x
+unStringLit (_, StringLit x) = x
+unIntegerLit (_, IntegerLit x) = x
+unBooleanLit (_, BooleanLit x) = x
+unIdent :: (AlexPosn, Token) -> String
+unIdent (_, Identifier x) = x
 
 getPosn :: (AlexPosn, Token) -> (Int, Int)
 getPosn (AlexPn _ row col, _) = (row, col)
