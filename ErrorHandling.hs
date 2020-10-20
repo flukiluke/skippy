@@ -16,19 +16,17 @@ data SemanticError
     | UnimplementedFeature { errPosn :: Posn }
 
 instance Show SemanticError where
-    show (DuplicateDefinition posn) = (ref posn) ++ "Duplicate definition"
-    show (BadIndex posn) = (ref posn) ++ "Invalid array index"
-    show (ArrayTooSmall posn) = (ref posn) ++ "Array must have size > 0"
-    show (BadArrayType posn) = (ref posn) ++ "Array type must be integer, boolean or a record"
-    show (BadVariableType posn) = (ref posn) ++ "Unknown type for variable"
-    show (UndeclaredSymbol posn name) = (ref posn) ++ name ++ " is not declared"
-    show (TypeMismatch posn expected actual) = (ref posn) ++ "Value was of type " ++ actual ++ " but expected " ++ expected
-    show (NotReference posn) = (ref posn) ++ "Argument is not of the correct form to be passed by reference (did you forget a 'val'?)"
-    show (UnexpectedField posn) = (ref posn) ++ "Type is not a record type"
-    show (NoMainProcedure posn) = (ref posn) ++ "Program does not contain a procedure main()"
-    show (UnimplementedFeature posn) = (ref posn) ++ "Unimplemented feature"
-
-ref (row, col) = (show row) ++ ":" ++ (show col) ++ ": "
+    show (DuplicateDefinition _) = "Duplicate definition"
+    show (BadIndex _) = "Invalid array index"
+    show (ArrayTooSmall _) = "Array must have size > 0"
+    show (BadArrayType _) = "Array type must be integer, boolean or a record"
+    show (BadVariableType _) = "Unknown type for variable"
+    show (UndeclaredSymbol _ name) = name ++ " is not declared"
+    show (TypeMismatch _ expected actual) = "Value was of type " ++ actual ++ " but expected " ++ expected
+    show (NotReference _) = "Argument is not of the correct form to be passed by reference (did you forget a 'val'?)"
+    show (UnexpectedField _) = "Type is not a record type"
+    show (NoMainProcedure _) = "Program does not contain a procedure main()"
+    show (UnimplementedFeature _) = "Unimplemented feature"
 
 -- Get the text on line linenum from content
 lineContent :: String -> Int -> String
