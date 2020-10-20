@@ -9,11 +9,20 @@ import SemanticErrors
 type Result a = Either SemanticError a
 
 checkProgram :: SymbolTable -> AST.Program -> Either String ()
-checkProgram symtab program@(AST.Program _ _ procs) = case do
-    mapM_ (checkProcedure symtab) procs
-        of
+checkProgram symtab program
+  = case checkProgram' symtab program of
             Left e -> Left (show e)
             Right _ -> Right ()
+
+checkProgram' :: SymbolTable -> AST.Program -> Result ()
+checkProgram' symtab program@(AST.Program _ _ procs) = do
+    mapM (checkProcedure symtab) procs
+    checkMainProcedure symtab
+
+checkMainProcedure :: SymbolTable -> Result ()
+checkMainProcedure symtab = do
+    proc <- lookup' "main" (procedures symtab) $ NoMainProcedure (-1, -1)
+    unless ((length . procSig $ proc) == 0) $ Left (NoMainProcedure (-1, -1))
 
 checkProcedure :: SymbolTable -> AST.Proc -> Result ()
 checkProcedure symtab (AST.Proc _ name _ _ stmts) = do
@@ -128,6 +137,8 @@ lvalType symtab locals (AST.LField posn recName fieldName) = do
 lvalType symtab locals (AST.LArray posn arrayName index) = do
     array <- lookup' arrayName locals $ UndeclaredSymbol posn arrayName
     let (ArrayType arrayType _) = varType array
+    indexType <- exprType symtab locals index 
+    unless (indexType == IntType) $ Left (BadIndex posn)
     return arrayType
 
 lvalType symtab locals (AST.LArrayField posn arrayName index fieldName) = do
