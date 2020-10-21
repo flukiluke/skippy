@@ -16,56 +16,60 @@ module AST where
 import Data.List (intercalate)
 
 type Ident = String
+type Posn = (Int, Int)
 
 data Program
     = Program [RecordDec] [ArrayDec] [Proc]
     deriving (Show, Eq)
 
 data RecordDec
-    = RecordDec Ident [FieldDec]
+    = RecordDec Posn Ident [FieldDec]
     deriving (Show, Eq)
     
 data FieldDec
-    = FieldDec Ident TypeName
+    = FieldDec Posn Ident TypeName
     deriving (Eq)
 
 instance Show FieldDec where
-    show (FieldDec ident typename) = (show typename) ++ " " ++ ident
+    show (FieldDec _ ident typename) = (show typename) ++ " " ++ ident
 
 data ArrayDec
-    = ArrayDec Ident TypeName Integer
+    = ArrayDec Posn Ident TypeName Int
     deriving (Show, Eq)
 
 data Proc
-    = Proc Ident [Parameter] [VarDec] [Stmt]
+    = Proc Posn Ident [Parameter] [VarDec] [Stmt]
     deriving (Show, Eq)
 
 data Parameter
-    = RefParam Ident TypeName
-    | ValParam Ident TypeName
+    = RefParam Posn Ident TypeName
+    | ValParam Posn Ident TypeName
     deriving (Eq)
 
 instance Show Parameter where
-    show (RefParam ident typename) = (show typename) ++ " " ++ ident
-    show (ValParam ident typename) = (show typename) ++ " val " ++ ident
+    show (RefParam _ ident typename) = (show typename) ++ " " ++ ident
+    show (ValParam _ ident typename) = (show typename) ++ " val " ++ ident
 
 data VarDec
-    = VarDec [Ident] TypeName
+    = VarDec {
+        varPosn :: Posn,
+        varDecNames :: [Ident],
+        varDecType :: TypeName }
     deriving (Eq)
 
 instance Show VarDec where
-    show (VarDec idents typename)
+    show (VarDec _ idents typename)
       = (show typename) ++ " " ++ (intercalate ", " idents)
 
 data Stmt 
-    = Assign LValue Expr     -- Assign Expr to LValue
-    | Read LValue            -- Read number input LValue
-    | Write Expr             -- Write expr to output
-    | WriteLn Expr           -- Write expr to output, with new line
-    | Call Ident [Expr]      -- Call procedure Ident with parameters [Expr]
-    | If Expr [Stmt] [Stmt]  -- Execute first [Stmt] if Expr is true,
-                             -- second [Expr] otherwise
-    | While Expr [Stmt]      -- Execute [Stmt] while Expr is true
+    = Assign Posn LValue Expr            -- Assign Expr to LValue
+    | Read Posn LValue                   -- Read number input LValue
+    | Write Posn Expr                    -- Write expr to output
+    | WriteLn Posn Expr                  -- Write expr to output, with new line
+    | Call Posn Ident [Expr]             -- Call procedure Ident with parameters [Expr]
+    | If Posn Expr [Stmt] [Stmt]         -- Execute first [Stmt] if Expr is true,
+                                    -- second [Expr] otherwise
+    | While Posn Expr [Stmt]             -- Execute [Stmt] while Expr is true
     deriving (Show, Eq)
 
 data TypeName
@@ -80,19 +84,24 @@ instance Show TypeName where
     show (AliasType name) = name
 
 data LValue 
-    = LId Ident                      -- Basic variable
-    | LField Ident Ident             -- Record field
-    | LArray Ident Expr              -- Array element
-    | LArrayField Ident Expr Ident   -- Field of array element
+    = LId Posn Ident                      -- Basic variable
+    | LField Posn Ident Ident             -- Record field
+    | LArray Posn Ident Expr              -- Array element
+    | LArrayField Posn Ident Expr Ident   -- Field of array element
     deriving (Show, Eq)
 
 data Expr
-    = Lval LValue
-    | BoolLit Bool
-    | IntLit Integer
-    | StrLit String
-    | BinOpExpr BinOp Expr Expr
-    | PreOpExpr PreOp Expr
+    = Lval { exprPosn :: Posn, exprLValue :: LValue }
+    | BoolLit { exprPosn :: Posn, exprBool :: Bool }
+    | IntLit { exprPosn :: Posn, exprInt :: Int }
+    | StrLit { exprPosn :: Posn, exprStr :: String }
+    | BinOpExpr { exprPosn :: Posn,
+                exprBinOp :: BinOp,
+                exprLeft :: Expr,
+                exprRight :: Expr }
+    | PreOpExpr { exprPosn :: Posn,
+                exprPreOp :: PreOp,
+                exprRight :: Expr }
     deriving (Show, Eq)
 
 -- Prefix operators

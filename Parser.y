@@ -24,12 +24,16 @@ import AST
 -- Requires Happy version 1.19.7 or greater
 %errorhandlertype explist
 
+%attributetype { Attributes a }
+%attribute node { a }
+%attribute posn { (Int, Int) }
+
 -- Note: the first element of each tuple is Alex position info
 %token
     -- Literals
-    boolean_lit     { (_, BooleanLit $$) }
-    integer_lit     { (_, IntegerLit $$) }
-    string_lit      { (_, StringLit $$) }
+    boolean_lit     { (_, BooleanLit _) }
+    integer_lit     { (_, IntegerLit _) }
+    string_lit      { (_, StringLit _) }
     -- Types & Declarations
     array           { (_, Keyword "array") }
     boolean         { (_, Keyword "boolean") }
@@ -76,7 +80,7 @@ import AST
     ';'             { (_, Symbol ";") }
     ','             { (_, Symbol ",") }
     -- Everything else
-    id              { (_, Identifier $$) }
+    id              { (_, Identifier _) }
 
 -- In order of precedence
 %left or
@@ -96,108 +100,164 @@ stolen from GHC's happy grammar.
 -}
 
 Program     : RecordDecs ArrayDecs ProcDecs
-                { Program (reverse $1) (reverse $2) (reverse $3) }
+                { $$ = Program (reverse $1) (reverse $2) (reverse $3) }
 
-RecordDecs  : {- empty -}                                   { [] }
-            | RecordDecs RecordDec                          { $2 : $1 }
+RecordDecs  : {- empty -}                                   { $$ = [] }
+            | RecordDecs RecordDec                          { $$ = $2 : $1 }
 
 RecordDec   : record '{' FieldDecs '}' id ';'
-                { RecordDec $5 (reverse $3) }
+                { $$ = RecordDec (getPosn $1) (unIdent $5) (reverse $3) }
 
-FieldDecs   : FieldDec                                      { [$1] }
-            | FieldDecs ';' FieldDec                        { $3 : $1 }
+FieldDecs   : FieldDec                                      { $$ = [$1] }
+            | FieldDecs ';' FieldDec                        { $$ = $3 : $1 }
 
 FieldDec    : boolean id
-                { FieldDec $2 BoolType }
+                { $$ = FieldDec (getPosn $1) (unIdent $2) BoolType }
             | integer id
-                { FieldDec $2 IntType }
+                { $$ = FieldDec (getPosn $1) (unIdent $2) IntType }
 
-ArrayDecs   : {- empty -}                                   { [] }
-            | ArrayDecs ArrayDec                            { $2 : $1 }
+ArrayDecs   : {- empty -}                                   { $$ = [] }
+            | ArrayDecs ArrayDec                            { $$ = $2 : $1 }
 
 ArrayDec    : array '[' integer_lit ']' ArrayType id ';'
-                { ArrayDec $6 $5 $3 }
+                { $$ = ArrayDec (getPosn $1) (unIdent $6) $5 (unIntegerLit $3) }
 
-ArrayType   : boolean                                       { BoolType }
-            | integer                                       { IntType }
-            | id                                            { (AliasType $1) }
+ArrayType   : boolean                                       { $$ = BoolType }
+            | integer                                       { $$ = IntType }
+            | id                                            { $$ = AliasType $ unIdent $1 }
 
-ProcDecs    : ProcDec                                       { [$1] }
-            | ProcDecs ProcDec                              { $2 : $1 }
+ProcDecs    : ProcDec                                       { $$ = [$1] }
+            | ProcDecs ProcDec                              { $$ = $2 : $1 }
 
 ProcDec     : procedure id '(' Parameters ')' LocalVarDecs '{' Statements '}'
-                { Proc $2 (reverse $4) (reverse $6) (reverse $8) }
+                { $$ = Proc (getPosn $1) (unIdent $2) (reverse $4) (reverse $6) (reverse $8) }
 
-Parameters  : {- empty -}                                   { [] }
-            | ParamList                                     { $1 }
+Parameters  : {- empty -}                                   { $$ = [] }
+            | ParamList                                     { $$ = $1 }
 
-ParamList   : Parameter                                     { [$1] }
-            | ParamList ',' Parameter                       { $3 : $1 }
+ParamList   : Parameter                                     { $$ = [$1] }
+            | ParamList ',' Parameter                       { $$ = $3 : $1 }
 
 Parameter   : id id
-                { RefParam $2 (AliasType $1) }
+                { $$ = RefParam (getPosn $1) (unIdent $2) (AliasType $ unIdent $1) }
             | boolean id
-                { RefParam $2 BoolType }
-            | integer id                          { RefParam $2 IntType }
-            | boolean val id                      { ValParam $3 BoolType }
-            | integer val id                      { ValParam $3 IntType }
+                { $$ = RefParam (getPosn $1) (unIdent $2) BoolType }
+            | integer id                          
+                { $$ = RefParam (getPosn $1) (unIdent $2) IntType }
+            | boolean val id                      
+                { $$ = ValParam (getPosn $1) (unIdent $3) BoolType }
+            | integer val id                      
+                { $$ = ValParam (getPosn $1) (unIdent $3) IntType }
 
-LocalVarDecs : {- empty -}                        { [] }
-             | LocalVarDecs LocalVarDec           { $2 : $1 }
+LocalVarDecs : {- empty -}                        { $$ = [] }
+             | LocalVarDecs LocalVarDec           { $$ = $2 : $1 }
 
 LocalVarDec : id LocalVars ';'
-                { VarDec (reverse $2) (AliasType $1) }
+                { $$ = VarDec (getPosn $1) (reverse $2) (AliasType $ unIdent $1) }
             | boolean LocalVars ';'
-                { VarDec (reverse $2) BoolType }
+                { $$ = VarDec (getPosn $1) (reverse $2) BoolType }
             | integer LocalVars ';'
-                { VarDec (reverse $2) IntType }
+                { $$ = VarDec (getPosn $1) (reverse $2) IntType }
 
-LocalVars   : id                                  { [$1] }
-            | LocalVars ',' id                    { $3 : $1 }
+LocalVars   : id                                { $$ = [unIdent $1] }
+            | LocalVars ',' id                  { $$ = (unIdent $3) : $1 }
 
-Statements  : Statement                           { [$1] }
-            | Statements Statement                { $2 : $1 }
+Statements  : Statement                         { $$ = [$1] }
+            | Statements Statement              { $$ = $2 : $1 }
 
-Statement   : Lvalue assign Expr ';'              { Assign $1 $3 }
-            | read Lvalue ';'                     { Read $2 }
-            | write Expr ';'                      { Write $2 }
-            | writeln Expr ';'                    { WriteLn $2 }
-            | call id '(' Args ')' ';'            { Call $2 (reverse $4) }
+Statement   : Lvalue assign Expr ';'            
+                { $$ = Assign (getPosn $2) $1 $3 }
+            | read Lvalue ';'                   
+                { $$ = Read (getPosn $1) $2 }
+            | write Expr ';'                    
+                { $$ = Write (getPosn $1) $2 }
+            | writeln Expr ';'                  
+                { $$ = WriteLn (getPosn $1) $2 }
+            | call id '(' Args ')' ';'          
+                { $$ = Call (getPosn $1) (unIdent $2) (reverse $4) }
             | if Expr then Statements ElseClause fi
-                { If $2 (reverse $4) $5 }
-            | while Expr do Statements od         { While $2 (reverse $4) }
+                { $$ = If (getPosn $1) $2 (reverse $4) $5 }
+            | while Expr do Statements od       
+                { $$ = While (getPosn $1) $2 (reverse $4) }
+                                                
 
-ElseClause  : {- empty -}                         { [] }
-            | else Statements                     { (reverse $2) }
+ElseClause  : {- empty -}                       { $$ = [] }
+            | else Statements                   { $$ = (reverse $2) }
 
-Args        : {- empty -}                         { [] }
-            | Expr                                { [$1] }
-            | Args ',' Expr                       { $3 : $1 }
+Args        : {- empty -}                       { $$ = [] }
+            | Expr                              { $$ = [$1] }
+            | Args ',' Expr                     { $$ = $3 : $1 }
 
-Lvalue      : id                                  { LId $1 }
-            | id '.' id                           { LField $1 $3 }
-            | id '[' Expr ']'                     { LArray $1 $3 }
-            | id '[' Expr ']' '.' id              { LArrayField $1 $3 $6 }
+Lvalue      : id                                { $$ = LId $$.posn (unIdent $1)
+                                                ; $$.posn = getPosn $1
+                                                }
+            | id '.' id                         { $$ = LField $$.posn (unIdent $1) (unIdent $3)
+                                                ; $$.posn = getPosn $1
+                                                }
+            | id '[' Expr ']'                   { $$ = LArray $$.posn (unIdent $1) $3
+                                                ; $$.posn = getPosn $1
+                                                }
+            | id '[' Expr ']' '.' id            { $$ = LArrayField $$.posn (unIdent $1) $3 (unIdent $6)
+                                                ; $$.posn = getPosn $1
+                                                }
 
-Expr        : Lvalue                              { Lval $1 }
-            | boolean_lit                         { BoolLit $1 }
-            | integer_lit                         { IntLit $1 }
-            | string_lit                          { StrLit $1 }
-            | '(' Expr ')'                        { $2 }
-            | Expr or Expr                        { BinOpExpr Op_or $1 $3 }
-            | Expr and Expr                       { BinOpExpr Op_and $1 $3 }
-            | not Expr                            { PreOpExpr Op_not $2 }
-            | Expr '=' Expr                       { BinOpExpr Op_eq $1 $3 }
-            | Expr '!=' Expr                      { BinOpExpr Op_neq $1 $3 }
-            | Expr '<' Expr                       { BinOpExpr Op_lt $1 $3 }
-            | Expr '<=' Expr                      { BinOpExpr Op_lteq $1 $3 }
-            | Expr '>' Expr                       { BinOpExpr Op_gt $1 $3 }
-            | Expr '>=' Expr                      { BinOpExpr Op_gteq $1 $3 }
-            | Expr '+' Expr                       { BinOpExpr Op_plus $1 $3 }
-            | Expr '-' Expr                       { BinOpExpr Op_minus $1 $3 }
-            | Expr '*' Expr                       { BinOpExpr Op_mult $1 $3 }
-            | Expr '/' Expr                       { BinOpExpr Op_divide $1 $3 }
-            | '-' Expr %prec negate               { PreOpExpr Op_negate $2 }
+Expr        : Lvalue                            { $$ = Lval $$.posn $1
+                                                ; $$.posn = $1.posn
+                                                }
+            | boolean_lit                       { $$ = BoolLit $$.posn $ unBooleanLit $1
+                                                ; $$.posn = getPosn $1
+                                                }
+            | integer_lit                       { $$ = IntLit $$.posn $ unIntegerLit $1
+                                                ; $$.posn = getPosn $1
+                                                }
+            | string_lit                        { $$ = StrLit $$.posn $ unStringLit $1
+                                                ; $$.posn = getPosn $1
+                                                }
+            | '(' Expr ')'                      { $$ = $2
+                                                ; $$.posn = getPosn $1
+                                                }
+            | Expr or Expr                      { $$ = BinOpExpr $$.posn Op_or $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr and Expr                     { $$ = BinOpExpr $$.posn Op_and $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | not Expr                          { $$ = PreOpExpr $$.posn Op_not $2
+                                                ; $$.posn = getPosn $1
+                                                }
+            | Expr '=' Expr                     { $$ = BinOpExpr $$.posn Op_eq $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '!=' Expr                    { $$ = BinOpExpr $$.posn Op_neq $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '<' Expr                     { $$ = BinOpExpr $$.posn Op_lt $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '<=' Expr                    { $$ = BinOpExpr $$.posn Op_lteq $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '>' Expr                     { $$ = BinOpExpr $$.posn Op_gt $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '>=' Expr                    { $$ = BinOpExpr $$.posn Op_gteq $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '+' Expr                     { $$ = BinOpExpr $$.posn Op_plus $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '-' Expr                     { $$ = BinOpExpr $$.posn Op_minus $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '*' Expr                     { $$ = BinOpExpr $$.posn Op_mult $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | Expr '/' Expr                     { $$ = BinOpExpr $$.posn Op_divide $1 $3
+                                                ; $$.posn = getPosn $2
+                                                }
+            | '-' Expr %prec negate             { $$ = PreOpExpr $$.posn Op_negate $2
+                                                ; $$.posn = getPosn $1
+                                                }
 
 {
 -- This function gets called on a parse error. It tries to generate a list of
@@ -216,4 +276,13 @@ parseError ((p, t), explist)
 -- everything match up.
 lexwrap :: ((AlexPosn, Token) -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
+
+unStringLit (_, StringLit x) = x
+unIntegerLit (_, IntegerLit x) = x
+unBooleanLit (_, BooleanLit x) = x
+unIdent :: (AlexPosn, Token) -> String
+unIdent (_, Identifier x) = x
+
+getPosn :: (AlexPosn, Token) -> (Int, Int)
+getPosn (AlexPn _ row col, _) = (row, col)
 }
