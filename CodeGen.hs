@@ -211,15 +211,13 @@ generateStmtCode table locals (AST.Call _ ident exprs) =
     (concatMap prepareParam (zip [0..] args)) ++ [OzCall ident]
     where (Procedure args _ _) = getProc table ident
           prepareParam (arg_idx, Variable _ True _) = do
-            -- passed in as a ref
-            -- is the lvalue in the current context also a ref?
-            (AST.Lval _ (AST.LId _ lval)) <- return $ exprs !! arg_idx
-            (Variable _ already_ref slot) <- return $ getLocal locals lval
-            return $ if already_ref then OzLoad arg_idx slot else OzLoadAddress arg_idx slot
+              -- passed in as a ref
+              (AST.Lval _ lval) <- return $ exprs !! arg_idx
+              getLvalAddress locals lval (arg_idx:rs)
           prepareParam x@(arg_idx, _) = do
               -- isn't a ref
-              generateExprCode locals (exprs !! arg_idx) $ arg_idx:spareRegisters
-          spareRegisters = drop numParams initialRegisters
+              generateExprCode locals (exprs !! arg_idx) $ arg_idx:rs
+          rs = drop numParams initialRegisters
           numParams = length exprs
 
 generateStmtCode table locals (AST.If pos expr stmts else_stmts) =
