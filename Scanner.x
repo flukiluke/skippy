@@ -24,12 +24,12 @@ import ErrorHandling (fancyErrorMessage)
 -- This means "\\" isn't a valid string though, so the second regex is a
 -- revised version of Roo that existed for about 20 hours on the discussion
 -- board before the lecturer retconned it; this allows \\ to be a literal
--- backslash.
--- The first regex was derived from a DFA using the Brzozowski algebratic
--- method, the second was crafted by hand.
+-- backslash. The first regex was derived from a DFA using the Brzozowski
+-- algebratic method, the second was crafted by hand.
+-- We use the second version because it makes more sense.
 $stdchars   = . # [\t\\\"]
-@string     = \" ($stdchars* \\+ ($stdchars | \"))* $stdchars* \"
--- @string  = \" ($stdchars | \\.)* \"
+-- @string     = \" ($stdchars* \\+ ($stdchars | \"))* $stdchars* \"
+@string  = \" ($stdchars | \\.)* \"
 -- " This line is just to fix my syntax highlighter
 $digit      = 0-9
 $symbol     = [\=\<\>\{\}\[\]\(\)\+\-\*\/\;\.\,]
@@ -79,14 +79,9 @@ lex_int (p,_,_,str) len = return (p, IntegerLit . read . take len $ str)
 lex_bool :: Bool -> AlexInput -> Int -> Alex (AlexPosn, Token)
 lex_bool b (p,_,_,_) _ = return (p, BooleanLit b)
 
--- Make quoted string literal
+-- Make quoted string literal, removing quotes.
 lex_str :: AlexInput -> Int -> Alex (AlexPosn, Token)
-lex_str (p,_,_,str) len = return (p, StringLit . unpack
-        -- Replace escaped quote (\") with literal quote (").
-        -- Not sure if this is needed with Oz, we'll find out later.
-        . (replace (pack "\\\"") (pack "\""))
-        -- Strip leading and trailing quotes.
-        . pack . tail . take (len - 1) $ str)
+lex_str (p,_,_,str) len = return (p, StringLit . tail . take (len - 1) $ str)
 
 {-
 Defined by Alex, here for reference:
