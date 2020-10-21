@@ -13,6 +13,7 @@
 -- $ make
 
 module Main (main) where
+import System.IO (hPutStrLn, stderr)
 import System.Environment (getProgName, getArgs)
 import System.Exit (exitWith, ExitCode(..))
 import Scanner (scan)
@@ -29,7 +30,7 @@ main
       args <- getArgs
       input <- readFile . last $ args
       case compile input of
-        Left e -> putStrLn e
+        Left e -> hPutStrLn stderr e >> exitWith (ExitFailure 1)
         Right code -> mapM_ putStrLn code
 
 -- A semantic stage is one that can produce a SemanticError
