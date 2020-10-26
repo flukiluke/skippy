@@ -1,8 +1,8 @@
 -- Skippy, a compiler for the Roo language.
 --
--- Submitted for assignment 1b of COMP90045, 2020
+-- Submitted for assignment 3 of COMP90045, 2020
 -- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
--- 16 September 2020
+-- 28 October 2020
 --
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
@@ -277,6 +277,7 @@ parseError ((p, t), explist)
 lexwrap :: ((AlexPosn, Token) -> Alex a) -> Alex a
 lexwrap = (alexMonadScan' >>=)
 
+-- Convenient functions for extracting data from literal tokens
 unStringLit (_, StringLit x) = x
 unIntegerLit (_, IntegerLit x) = x
 unBooleanLit (_, BooleanLit x) = x

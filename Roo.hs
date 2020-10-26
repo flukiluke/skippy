@@ -1,8 +1,8 @@
 -- Skippy, a compiler for the Roo language.
 --
--- Submitted for assignment 1b of COMP90045, 2020
+-- Submitted for assignment 3 of COMP90045, 2020
 -- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
--- 16 September 2020
+-- 28 October 2020
 --
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
@@ -18,7 +18,6 @@ import System.Environment (getProgName, getArgs)
 import System.Exit (exitWith, ExitCode(..))
 import Scanner (scan)
 import Parser (parse)
--- import Pretty (pprint)
 import SymbolTable (makeSymtab)
 import SemanticCheck (checkProgram)
 import ErrorHandling (semanticError, SemanticError)

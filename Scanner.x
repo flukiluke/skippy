@@ -1,8 +1,8 @@
 -- Skippy, a compiler for the Roo language.
 --
--- Submitted for assignment 1b of COMP90045, 2020
+-- Submitted for assignment 3 of COMP90045, 2020
 -- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
--- 16 September 2020
+-- 28 October 2020
 --
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
@@ -132,7 +132,7 @@ alexMonadScan' = do
 alexError' :: AlexPosn -> String -> Alex a
 alexError' p msg = Alex (\s -> let source = original . alex_ust $ s
                                    (AlexPn _ row col) = p
-                               in Left $ fancyErrorMessage (row, col) source msg)
+                              in Left $ fancyErrorMessage (row, col) source msg)
 
 -- Main entry point for scanner.
 scan :: String -> Alex a -> Either String a
