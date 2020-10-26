@@ -155,28 +155,42 @@ generateProcCode table (AST.Proc _ ident ps _ stmts) rs =
 -- register.
 getLvalAddress :: Locals -> AST.LValue -> [Int] -> [OzInstruction]
 
+-- Simple variable access
 getLvalAddress locals (AST.LId _ ident) (r:_) =
     [load_instr r slot]
         where (Variable _ is_ref slot) = getLocal locals ident
               load_instr = if is_ref then OzLoad else OzLoadAddress
 
+-- Record field access
 getLvalAddress locals (AST.LField _ var_ident field_ident) (addr_r:offset_r:_) =
+    -- Load address of record
     [load_instr addr_r slot]
+    -- Apply offset for field access
     ++ [OzIntConst offset_r offset]
     ++ [OzSubOffset addr_r addr_r offset_r]
-        where (Variable (RecordType fields) is_ref slot) = getLocal locals var_ident
-              (offset,_) = fields Map.! field_ident
+        where (Variable (RecordType fields) is_ref slot)
+                = getLocal locals var_ident
+              (offset, _) = fields Map.! field_ident
               load_instr = if is_ref then OzLoad else OzLoadAddress
 
+-- Array element
 getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:rs) =
+    -- Load address of first array element
     [load_instr addr_r slot]
+    -- Compute array index
     ++ generateExprCode locals expr (offset_r:rs)
+    -- Apply index
     ++ [OzSubOffset addr_r addr_r offset_r]
     where (Variable _ is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
 
-getLvalAddress locals (AST.LArrayField _ var_ident expr field_ident) (addr_r:offset_r:field_offset_r:rs) =
+-- Combination of array and record
+getLvalAddress locals
+               (AST.LArrayField _ var_ident expr field_ident)
+               (addr_r:offset_r:field_offset_r:rs) =
+    -- Array base
     [load_instr addr_r slot]
+    -- Array index computation
     ++ generateExprCode locals expr (offset_r:rs)
     -- multiply array offset by the field size
     ++ [ OzIntConst field_offset_r record_size
@@ -192,23 +206,33 @@ getLvalAddress locals (AST.LArrayField _ var_ident expr field_ident) (addr_r:off
           record_size = Map.size fields
           load_instr = if is_ref then OzLoad else OzLoadAddress
 
--- expression, table, registers available for use
+-- Generate code to evaluate an expression, leaving result in next register.
+-- Arguments: local symbols, expression, available registers
 generateExprCode :: Locals -> AST.Expr -> [Int] -> [OzInstruction]
-generateExprCode table (AST.Lval _ lval) rs@(val_r:_) =
-    getLvalAddress table lval rs
+
+-- lvalue is straight-forward
+generateExprCode table (AST.Lval _ lval) rs@(val_r:_)
+  = getLvalAddress table lval rs
     ++ [OzLoadIndirect val_r val_r]
 
-generateExprCode _ (AST.BoolLit _ b) (register:_) = [OzBoolConst register b]
-generateExprCode _ (AST.IntLit _ int) (register:_) = [OzIntConst register int]
-generateExprCode _ (AST.StrLit _ str) (register:_) = [OzStringConst register str]
+-- Literals are also easy
+generateExprCode _ (AST.BoolLit _ b) (register:_)
+  = [OzBoolConst register b]
+generateExprCode _ (AST.IntLit _ int) (register:_)
+  = [OzIntConst register int]
+generateExprCode _ (AST.StrLit _ str) (register:_)
+  = [OzStringConst register str]
 
-generateExprCode table (AST.BinOpExpr _ op expr1 expr2) (result_r:right_r:rs) =
-    (generateExprCode table expr1 (result_r:rs))
+-- All binary operations are the same and map directly to Oz commands.
+-- Evaluate left, evaluate right, do operation.
+generateExprCode table (AST.BinOpExpr _ op expr1 expr2) (result_r:right_r:rs)
+  = (generateExprCode table expr1 (result_r:rs))
     ++ (generateExprCode table expr2 (right_r:rs))
     ++ [OzBinOp op result_r result_r right_r]
 
-generateExprCode table (AST.PreOpExpr _ op expr) (result_r:tmp:rs) =
-    generateExprCode table expr (tmp:rs) ++ [OzUnaryOp op result_r tmp]
+-- Prefix unary operators are even easier.
+generateExprCode table (AST.PreOpExpr _ op expr) (result_r:tmp:rs)
+  = generateExprCode table expr (tmp:rs) ++ [OzUnaryOp op result_r tmp]
 
 -- half baked and ought to be removed
 -- instructions to loop, number of loops, spare registers, label
@@ -225,13 +249,17 @@ loopNTimes instrs n (num_r:tmp_r:_) label
         , OzBranchOnFalse tmp_r label
         ]
 
+-- Generate code for each of the Roo statements
 generateStmtCode :: SymbolTable -> Locals -> AST.Stmt -> [OzInstruction]
+
+-- Assignment of both scalars and compound types
 generateStmtCode table locals (AST.Assign _ lval expr)
+  -- scalar booleans and integers are simple
   | isPrimitive lval = generateExprCode locals expr (val_r:rs)
         -- get address
         ++ getLvalAddress locals lval (addr_r:rs)
         ++ [OzStoreIndirect addr_r val_r]
-  | otherwise = -- deeeeeep copy time
+  | otherwise = -- array or record, deeeeeep copy time
       getLvalAddress locals lval (lval_addr:rs)
       ++ getLvalAddress locals (rval expr) (rval_addr:rs)
       ++ (concat $ take (1 + copySize lval) $ repeat
@@ -259,8 +287,11 @@ generateStmtCode table locals (AST.Assign _ lval expr)
           copySize (AST.LArray _ lval_id _) = variableSize $ getvar lval_id
           rval (AST.Lval _ x) = x
 
+-- Read command for all types
 generateStmtCode _ locals (AST.Read pos lval) =
+    -- writes to r0
     [OzCallBuiltin readBuiltin]
+    -- store value in final location
     ++ getLvalAddress locals lval (addr_r:rs)
     ++ [OzStoreIndirect addr_r val_r]
     where (val_r:addr_r:rs) = initialRegisters
@@ -269,14 +300,19 @@ generateStmtCode _ locals (AST.Read pos lval) =
                           (Right IntType)  -> "read_int"
                           _                -> "error"
 
+-- Write command for all types
 generateStmtCode _ locals (AST.Write _ expr) =
+    -- Evaluate expression
     (generateExprCode locals expr initialRegisters)
+    -- Value to write in r0
     ++ [OzCallBuiltin printBuiltin]
     where printBuiltin = case (exprType locals expr) of
                            (Right BoolType) -> "print_bool"
                            (Right IntType)  -> "print_int"
                            _                -> "print_string"
 
+-- WriteLn command for all types
+-- As per Write but with a print_newline
 generateStmtCode _ locals (AST.WriteLn _ expr) =
     (generateExprCode locals expr initialRegisters)
     ++ [OzCallBuiltin printBuiltin, OzCallBuiltin "print_newline"]
@@ -285,9 +321,12 @@ generateStmtCode _ locals (AST.WriteLn _ expr) =
                            (Right IntType)  -> "print_int"
                            _                -> "print_string"
 
+-- Call command
 generateStmtCode table locals (AST.Call _ ident exprs) =
-    -- prepare arguments to be passed
-    (concatMap prepareParam (zip [0..] args)) ++ [OzCall ident]
+    -- Prepare arguments to be passed
+    (concatMap prepareParam (zip [0..] args))
+    -- Make call
+    ++ [OzCall ident]
     where (Procedure args _ _) = getProc table ident
           prepareParam (arg_idx, Variable _ True _) = do
               -- passed in as a ref
@@ -299,21 +338,32 @@ generateStmtCode table locals (AST.Call _ ident exprs) =
           rs = drop numParams initialRegisters
           numParams = length exprs
 
+-- If conditional
 generateStmtCode table locals (AST.If pos expr stmts else_stmts) =
+    -- Evaluate conditional
     (generateExprCode locals expr initialRegisters)
+    -- Jump to false branch
     ++ [OzBranchOnFalse 0 $ label ++ "_0"]
+    -- Generate true branch
     ++ (concatMap (generateStmtCode table locals) stmts)
+    -- Jump to end
     ++ [OzBranchUncond $ label ++ "_1",
+    -- False branch
     OzLabel $ label ++ "_0"]
     ++ (concatMap (generateStmtCode table locals) else_stmts)
     ++ [OzLabel $ label ++ "_1"]
         where label = getLabel pos
 
+-- While loop
 generateStmtCode table locals (AST.While pos expr stmts) =
     [OzLabel $ label ++ "_0"]
+    -- Evaluate guard
     ++ (generateExprCode locals expr initialRegisters)
+    -- Exit jump
     ++ [OzBranchOnFalse 0 $ label ++ "_1"]
+    -- Body
     ++ (concatMap (generateStmtCode table locals) stmts)
+    -- Jump to top
     ++ [OzBranchUncond $ label ++ "_0",
     OzLabel $ label ++ "_1"]
         where label = getLabel pos
