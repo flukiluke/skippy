@@ -172,13 +172,54 @@ generateExprCode table (AST.PreOpExpr _ op expr) (result_r:tmp:rs) =
 initialRegisters :: [Int]
 initialRegisters = take 1024 [0..]
 
+-- half baked and ought to be removed
+-- instructions to loop, number of loops, spare registers, label
+loopNTimes :: [OzInstruction] -> Int -> [Int] -> String -> [OzInstruction]
+loopNTimes instrs n (num_r:tmp_r:_) label
+    = [OzIntConst num_r n, OzLabel label]
+    ++ instrs ++
+        [ OzIntConst tmp_r 1
+        -- subtract 1 from loop index
+        , OzBinOp AST.Op_minus num_r num_r tmp_r
+        , OzIntConst tmp_r 0
+        -- check if > 0
+        , OzBinOp AST.Op_gt tmp_r num_r tmp_r
+        , OzBranchOnFalse tmp_r label
+        ]
+
 generateStmtCode :: SymbolTable -> Locals -> AST.Stmt -> [OzInstruction]
-generateStmtCode table locals (AST.Assign _ lval expr) =
-    generateExprCode locals expr (val_r:rs)
-    -- get address
-    ++ getLvalAddress locals lval (addr_r:rs)
-    ++ [OzStoreIndirect addr_r val_r]
+generateStmtCode table locals (AST.Assign _ lval expr)
+  | isPrimitive lval = generateExprCode locals expr (val_r:rs)
+        -- get address
+        ++ getLvalAddress locals lval (addr_r:rs)
+        ++ [OzStoreIndirect addr_r val_r]
+  | otherwise = -- deeeeeep copy time
+      getLvalAddress locals lval (lval_addr:rs)
+      ++ getLvalAddress locals (rval expr) (rval_addr:rs)
+      ++ (concat $ take (1 + copySize lval) $ repeat
+          [ OzLoadIndirect tmp_r rval_addr
+          , OzStoreIndirect lval_addr tmp_r
+          , OzIntConst tmp_r 1
+          , OzSubOffset lval_addr lval_addr tmp_r
+          , OzSubOffset rval_addr rval_addr tmp_r
+          ])
     where (val_r:addr_r:rs) = initialRegisters
+          (lval_addr:rval_addr:tmp_r:_) = initialRegisters
+          isPrimitive (AST.LId _ lval_id) = not . isAlias $ getvar lval_id
+          isPrimitive (AST.LArray _ lval_id _) = not . isArrOfRec $ getvar lval_id
+          isPrimitive _ = True
+          isAlias (Variable (ArrayType _ _) _ _) = True
+          isAlias (Variable (RecordType _) _ _) = True
+          isAlias _ = False
+          isArrOfRec (Variable (ArrayType (RecordType _) _) _ _) = True
+          isArrOfRec _ = False
+          getvar x = getLocal locals x
+          typeSize (RecordType fields) = Map.size fields
+          typeSize _ = 1
+          copySize (AST.LId _ lval_id) = variableSize $ getvar lval_id
+          copySize (AST.LArrayField _ _ _ _) = 1
+          copySize (AST.LArray _ lval_id _) = variableSize $ getvar lval_id
+          rval (AST.Lval _ x) = x
 
 generateStmtCode _ locals (AST.Read pos lval) =
     [OzCallBuiltin readBuiltin]
