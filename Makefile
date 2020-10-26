@@ -9,7 +9,7 @@
 #
 # Basic makefile. Needs ghc, alex and happy installed.
 
-Roo: *.hs
+Roo: Scanner.hs Parser.hs *.hs
 	ghc Roo.hs
 
 Scanner.hs: Scanner.x

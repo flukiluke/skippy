@@ -1,7 +1,15 @@
 -- Skippy, a compiler for the Roo language
 --
+-- Submitted for assignment 3 of COMP90045, 2020
+-- By Luke Ceddia [lceddia] and Ben Harper [bharper1]
+-- 28 October 2020
+--
 -- This program is licensed under the MIT license; see the LICENCE file for
 -- full details.
+--
+-- This module is responsible for generating Oz assembly. It assumed the
+-- provided symbol table and AST represent a semantically correct program
+-- and thus does not do error checking.
 
 module CodeGen where
 
@@ -11,10 +19,12 @@ import SemanticCheck (exprType)
 import qualified Data.Map.Lazy as Map
 import Data.List (intercalate)
 
+-- Each data constructor's arguments correspond exactly to the Oz assembly
+-- instruction except where noted.
 data OzInstruction
     = OzCall String
     | OzLabel String
-    | OzPrint AST.TypeName
+    | OzPrint AST.TypeName -- call_builtin of appropriately typed print
     | OzHalt
     | OzPushStackFrame Int
     | OzPopStackFrame Int
@@ -23,41 +33,55 @@ data OzInstruction
     | OzLoad Int Int
     | OzLoadIndirect Int Int
     | OzIntConst Int Int
-    | OzBoolConst Int Bool
+    | OzBoolConst Int Bool -- Ultimately translated to an int_const
     | OzStringConst Int String
     | OzReturn
-    | OzBinOp AST.BinOp Int Int Int
-    | OzUnaryOp AST.PreOp Int Int
+    | OzBinOp AST.BinOp Int Int Int -- Selects appropriate operator
+    | OzUnaryOp AST.PreOp Int Int -- Selects appropriate operator
     | OzCallBuiltin String
     | OzLoadAddress Int Int
     | OzBranchOnFalse Int String
     | OzBranchUncond String
     | OzSubOffset Int Int Int
 
+-- Straight-forward string equivalents of above instructions
 instance Show OzInstruction where
-    show (OzCall p) = "call " ++ p
-    show (OzLabel l) = l ++ ":"
-    show (OzPrint t) = "call_builtin " ++ printBuiltin
+    show (OzCall p)
+      = "call " ++ p
+    show (OzLabel l)
+      = l ++ ":"
+    show (OzPrint t)
+      = "call_builtin " ++ printBuiltin
         where printBuiltin = case t of
                                  AST.BoolType -> "print_bool"
                                  AST.IntType  -> "print_int"
                                  _ -> "print_string"
-    show OzHalt = "halt"
-    show (OzPushStackFrame x) = "push_stack_frame " ++ show x
-    show (OzPopStackFrame x) = "pop_stack_frame " ++ show x
-    show (OzStore target from) = "store " ++ show target ++ ", r" ++ show from
-    show (OzStoreIndirect target from) = "store_indirect r" ++ show target
-        ++ ", r" ++ show from
-    show (OzLoad target from) = "load r" ++ show target ++ ", " ++ show from
-    show (OzLoadIndirect target from) = "load_indirect r" ++ show target
-        ++ ", r" ++ show from
-    show (OzIntConst target c) = "int_const r" ++ show target ++ ", " ++ show c
-    show (OzBoolConst target c) = "int_const r" ++ show target ++ ", " ++ bool_lit c
+    show OzHalt
+      = "halt"
+    show (OzPushStackFrame x)
+      = "push_stack_frame " ++ show x
+    show (OzPopStackFrame x)
+      = "pop_stack_frame " ++ show x
+    show (OzStore target from)
+      = "store " ++ show target ++ ", r" ++ show from
+    show (OzStoreIndirect target from)
+      = "store_indirect r" ++ show target ++ ", r" ++ show from
+    show (OzLoad target from)
+      = "load r" ++ show target ++ ", " ++ show from
+    show (OzLoadIndirect target from)
+      = "load_indirect r" ++ show target ++ ", r" ++ show from
+    show (OzIntConst target c)
+      = "int_const r" ++ show target ++ ", " ++ show c
+    show (OzBoolConst target c)
+      = "int_const r" ++ show target ++ ", " ++ bool_lit c
         where bool_lit True = "1"
               bool_lit False = "0"
-    show (OzStringConst target c) = "string_const r" ++ show target ++ ", \"" ++ c ++ "\""
-    show OzReturn = "return"
-    show (OzBinOp op target left right) = getOpStr op ++ " r" ++ show target
+    show (OzStringConst target c)
+      = "string_const r" ++ show target ++ ", \"" ++ c ++ "\""
+    show OzReturn
+      = "return"
+    show (OzBinOp op target left right)
+      = getOpStr op ++ " r" ++ show target
         ++ ", r" ++ show left ++ ", r" ++ show right
             where getOpStr (AST.Op_or)    = "or"
                   getOpStr (AST.Op_and)   = "and"
@@ -71,53 +95,70 @@ instance Show OzInstruction where
                   getOpStr AST.Op_minus   = "sub_int"
                   getOpStr AST.Op_mult    = "mul_int"
                   getOpStr AST.Op_divide  = "div_int"
-    show (OzUnaryOp op target tmp) = getOpStr op ++ " r" ++ show target
-        ++ ", r" ++ show tmp
+    show (OzUnaryOp op target tmp)
+      = getOpStr op ++ " r" ++ show target ++ ", r" ++ show tmp
             where getOpStr AST.Op_negate = "neg_int"
                   getOpStr AST.Op_not    = "not"
-    show (OzCallBuiltin f) = "call_builtin " ++ f
-    show (OzLoadAddress target from) = "load_address r" ++ show target
-        ++ ", " ++ show from
-    show (OzBranchOnFalse cond label) = "branch_on_false r" ++ show cond
-        ++ ", " ++ label
-    show (OzBranchUncond label) = "branch_uncond " ++ label
-    show (OzSubOffset target left right) = "sub_offset r" ++ show target
+    show (OzCallBuiltin f)
+      = "call_builtin " ++ f
+    show (OzLoadAddress target from)
+      = "load_address r" ++ show target ++ ", " ++ show from
+    show (OzBranchOnFalse cond label)
+      = "branch_on_false r" ++ show cond ++ ", " ++ label
+    show (OzBranchUncond label)
+      = "branch_uncond " ++ label
+    show (OzSubOffset target left right)
+      = "sub_offset r" ++ show target
         ++ ", r" ++ show left ++ ", r" ++ show right
 
+-- Generate labels that are guaranteed unique by using the object's
+-- source code position. This sounds janky but ends up working quite well,
+-- without the need for more state.
 getLabel :: AST.Posn -> String
 getLabel (x, y) = "label_" ++ show x ++ "_" ++ show y
 
+-- The full set of registers available. Various functions will reserve some
+-- elements and pass a tail to children to control register allocation.
+initialRegisters :: [Int]
+initialRegisters = [0..1023]
+
+-- Main entry point for this module. Generate list of Oz instructions from
+-- symbol table and AST.
 generateMachineCode :: SymbolTable -> AST.Program -> [OzInstruction]
 generateMachineCode table prog@(AST.Program _ _ procs) =
     [ OzCall "main"
-      , OzHalt
+    , OzHalt
     ] ++ concatMap (\x -> generateProcCode table x initialRegisters) procs
 
+-- Generate list of Oz instructions beginning with label for a procedure.
 generateProcCode :: SymbolTable -> AST.Proc -> [Int] -> [OzInstruction]
 generateProcCode table (AST.Proc _ ident ps _ stmts) rs =
     -- prelude
     [ OzLabel ident
     , OzPushStackFrame stack_size
     ]
-    -- load parameters into slots
-    ++ (if length ps > 0 then map (\x -> OzStore x x) [0.. length ps - 1]
-    else [])
-    -- initialise variables
-    ++ (if local_size > 0 then do
-        [OzIntConst 0 0] ++ (map (\x -> OzStore x 0) $ take local_size [length ps..])
-    else [])
+    -- write passed parameters out to slots
+    ++ map (\x -> OzStore x x) [0..length ps - 1]
+    -- initialise all local variables to 0
+    ++ (if local_size > 0 then
+            [OzIntConst 0 0]
+            ++ map (\x -> OzStore x 0) (take local_size [length ps..])
+       else [])
     -- get statement code
-    ++ (concatMap (generateStmtCode table locals) stmts)
+    ++ concatMap (generateStmtCode table locals) stmts
     -- cleanup
     ++ [OzPopStackFrame stack_size, OzReturn]
         where (Procedure _ locals stack_size) = getProc table ident
               local_size = stack_size - length ps
 
+-- Generate instructions to load address of an lvalue into next available
+-- register.
 getLvalAddress :: Locals -> AST.LValue -> [Int] -> [OzInstruction]
+
 getLvalAddress locals (AST.LId _ ident) (r:_) =
     [load_instr r slot]
-    where (Variable _ is_ref slot) = getLocal locals ident
-          load_instr = if is_ref then OzLoad else OzLoadAddress
+        where (Variable _ is_ref slot) = getLocal locals ident
+              load_instr = if is_ref then OzLoad else OzLoadAddress
 
 getLvalAddress locals (AST.LField _ var_ident field_ident) (addr_r:offset_r:_) =
     [load_instr addr_r slot]
@@ -168,9 +209,6 @@ generateExprCode table (AST.BinOpExpr _ op expr1 expr2) (result_r:right_r:rs) =
 
 generateExprCode table (AST.PreOpExpr _ op expr) (result_r:tmp:rs) =
     generateExprCode table expr (tmp:rs) ++ [OzUnaryOp op result_r tmp]
-
-initialRegisters :: [Int]
-initialRegisters = take 1024 [0..]
 
 generateStmtCode :: SymbolTable -> Locals -> AST.Stmt -> [OzInstruction]
 generateStmtCode table locals (AST.Assign _ lval expr) =
