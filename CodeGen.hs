@@ -153,6 +153,10 @@ generateProcCode table (AST.Proc _ ident ps _ stmts) rs =
 
 -- Generate instructions to load address of an lvalue into next available
 -- register.
+typeSize :: RooType -> Int
+typeSize (RecordType fields) = Map.size fields
+typeSize _ = 1
+
 getLvalAddress :: Locals -> AST.LValue -> [Int] -> [OzInstruction]
 
 -- Simple variable access
@@ -174,15 +178,20 @@ getLvalAddress locals (AST.LField _ var_ident field_ident) (addr_r:offset_r:_) =
               load_instr = if is_ref then OzLoad else OzLoadAddress
 
 -- Array element
-getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:rs) =
+getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:size_r:rs) =
     -- Load address of first array element
     [load_instr addr_r slot]
     -- Compute array index
     ++ generateExprCode locals expr (offset_r:rs)
     -- Apply index
+    ++ if type_size == 1
+          then []
+          else [OzIntConst size_r type_size
+               , OzBinOp AST.Op_mult offset_r offset_r size_r]
     ++ [OzSubOffset addr_r addr_r offset_r]
-    where (Variable _ is_ref slot) = getLocal locals ident
+    where (Variable (ArrayType arr_type _) is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
+          type_size = typeSize arr_type
 
 -- Combination of array and record
 getLvalAddress locals
@@ -234,21 +243,6 @@ generateExprCode table (AST.BinOpExpr _ op expr1 expr2) (result_r:right_r:rs)
 generateExprCode table (AST.PreOpExpr _ op expr) (result_r:tmp:rs)
   = generateExprCode table expr (tmp:rs) ++ [OzUnaryOp op result_r tmp]
 
--- half baked and ought to be removed
--- instructions to loop, number of loops, spare registers, label
-loopNTimes :: [OzInstruction] -> Int -> [Int] -> String -> [OzInstruction]
-loopNTimes instrs n (num_r:tmp_r:_) label
-    = [OzIntConst num_r n, OzLabel label]
-    ++ instrs ++
-        [ OzIntConst tmp_r 1
-        -- subtract 1 from loop index
-        , OzBinOp AST.Op_minus num_r num_r tmp_r
-        , OzIntConst tmp_r 0
-        -- check if > 0
-        , OzBinOp AST.Op_gt tmp_r num_r tmp_r
-        , OzBranchOnFalse tmp_r label
-        ]
-
 -- Generate code for each of the Roo statements
 generateStmtCode :: SymbolTable -> Locals -> AST.Stmt -> [OzInstruction]
 
@@ -280,8 +274,6 @@ generateStmtCode table locals (AST.Assign _ lval expr)
           isArrOfRec (Variable (ArrayType (RecordType _) _) _ _) = True
           isArrOfRec _ = False
           getvar x = getLocal locals x
-          typeSize (RecordType fields) = Map.size fields
-          typeSize _ = 1
           copySize (AST.LId _ lval_id) = variableSize $ getvar lval_id
           copySize (AST.LArrayField _ _ _ _) = 1
           copySize (AST.LArray _ lval_id _) = variableSize $ getvar lval_id
