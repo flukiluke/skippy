@@ -9,14 +9,16 @@
 --
 -- This is the structure of the Abstract Syntax Tree used parsing the input
 -- program. It also includes some basic show definitions to assist pretty
--- printing.
+-- printing. Note that most data constructors have a Posn parameter. This is
+-- for better error reporting, and for generating unique references to program
+-- elements.
 
 module AST where
 
 import Data.List (intercalate)
 
 type Ident = String
-type Posn = (Int, Int)
+type Posn = (Int, Int) -- Row, column in source file.
 
 data Program
     = Program [RecordDec] [ArrayDec] [Proc]
