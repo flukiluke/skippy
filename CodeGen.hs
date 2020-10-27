@@ -153,6 +153,10 @@ generateProcCode table (AST.Proc _ ident ps _ stmts) rs =
 
 -- Generate instructions to load address of an lvalue into next available
 -- register.
+typeSize :: RooType -> Int
+typeSize (RecordType fields) = Map.size fields
+typeSize _ = 1
+
 getLvalAddress :: Locals -> AST.LValue -> [Int] -> [OzInstruction]
 
 -- Simple variable access
@@ -174,15 +178,20 @@ getLvalAddress locals (AST.LField _ var_ident field_ident) (addr_r:offset_r:_) =
               load_instr = if is_ref then OzLoad else OzLoadAddress
 
 -- Array element
-getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:rs) =
+getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:size_r:rs) =
     -- Load address of first array element
     [load_instr addr_r slot]
     -- Compute array index
     ++ generateExprCode locals expr (offset_r:rs)
     -- Apply index
+    ++ if type_size == 1
+          then []
+          else [OzIntConst size_r type_size
+               , OzBinOp AST.Op_mult offset_r offset_r size_r]
     ++ [OzSubOffset addr_r addr_r offset_r]
-    where (Variable _ is_ref slot) = getLocal locals ident
+    where (Variable (ArrayType arr_type _) is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
+          type_size = typeSize arr_type
 
 -- Combination of array and record
 getLvalAddress locals
@@ -280,8 +289,6 @@ generateStmtCode table locals (AST.Assign _ lval expr)
           isArrOfRec (Variable (ArrayType (RecordType _) _) _ _) = True
           isArrOfRec _ = False
           getvar x = getLocal locals x
-          typeSize (RecordType fields) = Map.size fields
-          typeSize _ = 1
           copySize (AST.LId _ lval_id) = variableSize $ getvar lval_id
           copySize (AST.LArrayField _ _ _ _) = 1
           copySize (AST.LArray _ lval_id _) = variableSize $ getvar lval_id
