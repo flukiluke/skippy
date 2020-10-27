@@ -193,10 +193,10 @@ getLvalAddress locals (AST.LArray _ ident expr) (addr_r:offset_r:size_r:rs) =
     -- Compute array index
     ++ generateExprCode locals expr (offset_r:rs)
     -- Apply index
-    ++ if type_size == 1
+    ++ (if type_size == 1
           then []
           else [OzIntConst size_r type_size
-               , OzBinOp AST.Op_mult offset_r offset_r size_r]
+               , OzBinOp AST.Op_mult offset_r offset_r size_r])
     ++ [OzSubOffset addr_r addr_r offset_r]
     where (Variable (ArrayType arr_type _) is_ref slot) = getLocal locals ident
           load_instr = if is_ref then OzLoad else OzLoadAddress
