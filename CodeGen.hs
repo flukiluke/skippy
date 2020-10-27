@@ -243,21 +243,6 @@ generateExprCode table (AST.BinOpExpr _ op expr1 expr2) (result_r:right_r:rs)
 generateExprCode table (AST.PreOpExpr _ op expr) (result_r:tmp:rs)
   = generateExprCode table expr (tmp:rs) ++ [OzUnaryOp op result_r tmp]
 
--- half baked and ought to be removed
--- instructions to loop, number of loops, spare registers, label
-loopNTimes :: [OzInstruction] -> Int -> [Int] -> String -> [OzInstruction]
-loopNTimes instrs n (num_r:tmp_r:_) label
-    = [OzIntConst num_r n, OzLabel label]
-    ++ instrs ++
-        [ OzIntConst tmp_r 1
-        -- subtract 1 from loop index
-        , OzBinOp AST.Op_minus num_r num_r tmp_r
-        , OzIntConst tmp_r 0
-        -- check if > 0
-        , OzBinOp AST.Op_gt tmp_r num_r tmp_r
-        , OzBranchOnFalse tmp_r label
-        ]
-
 -- Generate code for each of the Roo statements
 generateStmtCode :: SymbolTable -> Locals -> AST.Stmt -> [OzInstruction]
 
