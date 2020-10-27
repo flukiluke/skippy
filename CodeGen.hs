@@ -11,6 +11,15 @@
 -- provided symbol table and AST represent a semantically correct program
 -- and thus does not do error checking.
 
+-- About calling conventions & register allocation:
+--  * Procedures are called by passing parameters left to right in registers
+--    r0 though to rN as needed.
+--  * Procedures write arguments out to allocated stack slots immediately
+--    after initialising their stack frame.
+--  * No registers are preserved between Roo statements. This allows each
+--    statement to use registers destructively from r0 upwards.
+--  * This isn't particularly efficient but it's simple and it works.
+
 module CodeGen where
 
 import qualified AST as AST
